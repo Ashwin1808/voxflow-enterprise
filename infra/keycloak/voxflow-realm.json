@@ -1,0 +1,61 @@
+{
+  "realm": "voxflow-realm",
+  "enabled": true,
+  "displayName": "VoxFlow",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "sslRequired": "external",
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 604800,
+  "ssoSessionMaxLifespan": 604800,
+  "roles": {
+    "realm": [
+      { "name": "ADMIN", "description": "Full VoxFlow platform administrator." },
+      { "name": "AGENT", "description": "Inbound call and customer operations user." },
+      { "name": "CUSTOMER", "description": "Visual IVR and payment portal user." },
+      { "name": "DEVELOPER", "description": "API documentation, health, and metrics user." }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "voxflow-ui",
+      "name": "VoxFlow UI",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:4173/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:4173",
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "post.logout.redirect.uris": "http://localhost:4173/*"
+      },
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
+      "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
+    },
+    {
+      "clientId": "voxflow-services",
+      "name": "VoxFlow Service-to-Service Client",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["profile", "roles", "email"],
+      "optionalClientScopes": ["microprofile-jwt"]
+    }
+  ]
+}

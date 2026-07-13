@@ -1,0 +1,52 @@
+server:
+  port: ${SERVER_PORT:8081}
+  shutdown: graceful
+
+spring:
+  application:
+    name: auth-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8089/realms/voxflow-realm}
+
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:${server.port}}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,loggers
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+  info:
+    env:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: ${SWAGGER_UI_ENABLED:true}
+
+info:
+  service: auth-service
+  version: 0.1.0-SNAPSHOT
+  owner: voxflow-platform
+
+logging:
+  level:
+    root: INFO
+    com.voxflow.auth: INFO
+    org.springframework.security: INFO
+

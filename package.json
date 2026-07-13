@@ -1,0 +1,14 @@
+{
+  "name": "voxflow-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VoxFlow enterprise omnichannel communication platform prototype.",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

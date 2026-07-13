@@ -1,0 +1,12 @@
+.DS_Store
+.spec_extract.txt
+target/
+*.log
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+.idea/
+.vscode/
+
