@@ -2,38 +2,42 @@
 
 ## Current Task
 
-Task 1: Authentication.
+Scope reset: only Fraud, Inbound, and Outbound services for now.
 
 ## Progress Tracker
 
 | Component | Status | Notes |
 | --- | --- | --- |
 | React frontend | Complete | Existing UI left untouched. |
-| auth-service + Keycloak | Complete for Task 1 source build | Spring Security resource server, Keycloak realm import, RBAC endpoints, actuator, Swagger, JSON logging, tests, Dockerfile. |
-| spring-cloud-gateway | Not started | Planned after business service APIs are ready. |
-| campaign-service | Not started | Task 2. |
-| workflow-service | Not started | Task 3. |
-| payment-service | Not started | Task 5. |
-| notification-service | Not started | Needed for Visual IVR/backend messaging. |
-| analytics-service | Not started | Common component after core events exist. |
-| Docker Compose full stack | Not started | DevOps begins at Task 6 per requested workflow. |
-| Kubernetes manifests | Not started | Task 7. |
-| Terraform | Not started | Task 8. |
-| GitHub Actions | Not started | Task 9. |
-| Monitoring | Not started | Task 10. |
+| auth-service + Keycloak | Complete | Resource server, realm import, RBAC, actuator, Swagger. |
+| fraud-service | In progress | Fraud sessions, fraud decisions, card status, Visual IVR fallback. |
+| inbound-service | In progress | Inbound call session, DTMF menu routing, agent transfer. |
+| outbound-service | In progress | Outbound simulator call request, attempts, Visual IVR fallback. |
+| campaign-service | Removed from current scope | Replaced by focused Fraud/Inbound/Outbound services. |
+| spring-cloud-gateway | Deferred | User will decide later. |
+| payment-service | Deferred | Not in current three-service scope. |
+| notification-service | Deferred | Not in current three-service scope. |
+| analytics-service | Deferred | Not in current three-service scope. |
+| Docker / DevOps | User-owned | Do not implement for now. |
 
-## Task 1 Architecture Notes
+## Current Architecture
 
-Authentication is delegated to Keycloak, not implemented as custom JWT logic. The `auth-service` acts as a Spring Boot 3 resource server and identity facade:
+The project is now intentionally smaller than the original master specification:
 
-- Validates JWTs issued by `voxflow-realm`.
-- Maps Keycloak `realm_access.roles` and client roles to Spring Security `ROLE_*` authorities.
-- Exposes `/api/v1/auth/me` for current identity.
-- Exposes `/api/v1/auth/roles` for the RBAC matrix.
-- Protects admin-only endpoints with `@PreAuthorize`.
-- Keeps health, readiness, liveness, metrics, Prometheus, and OpenAPI available according to the spec.
-- Ships a realm import without users or credentials. Users must be created through Keycloak Admin UI, `kcadm.sh`, or environment-specific automation so no password lands in Git.
+- `auth-service`: authentication and RBAC foundation.
+- `fraud-service`: fraud verification business flow.
+- `inbound-service`: inbound IVR business flow.
+- `outbound-service`: outbound IVR business flow.
+
+Simulator-first is the default. Twilio, Exotel, RabbitMQ, Docker, Kubernetes, Terraform, and monitoring are deferred.
 
 ## Verification
 
-Java and Maven are not installed on this machine, so Maven tests cannot run locally yet. Source-level structure and syntax were created according to Spring Boot 3 conventions and will be compiled once JDK 21 and Maven or the Maven Wrapper are available.
+Java and Maven are not installed on this machine, so Maven tests cannot run locally until JDK 21 and Maven are installed.
+
+## Next Steps
+
+1. Finish the three focused services.
+2. Add tests for all three services.
+3. Wire the UI to Fraud, Inbound, and Outbound APIs.
+4. Stop before Docker/DevOps; user will handle that part.

@@ -1,6 +1,6 @@
 # VoxFlow Platform
 
-VoxFlow is an enterprise omnichannel communication platform inspired by the attached master engineering specification. This first build is a working operations-console prototype that turns the spec into a tangible product surface: campaign management, workflow simulation, provider health, payments visibility, Visual IVR, and RabbitMQ-style event activity.
+VoxFlow is an enterprise omnichannel communication platform. The current implementation is intentionally narrowed to three business services: Fraud, Inbound IVR, and Outbound IVR. Docker and DevOps are intentionally left for the user to implement later.
 
 ## Run UI Prototype
 
@@ -12,15 +12,24 @@ Then open `http://localhost:4173`.
 
 ## Backend Status
 
-Task 1 Authentication has been added under `services/auth-service`.
+| Service | Port | Status |
+| --- | --- | --- |
+| auth-service | 8081 | Complete — Keycloak resource server, RBAC |
+| fraud-service | 8082 | In progress — fraud sessions, decisions, card status, Visual IVR fallback |
+| inbound-service | 8083 | In progress — inbound call sessions, DTMF menu routing, agent transfer |
+| outbound-service | 8084 | In progress — outbound simulator calls, attempts, Visual IVR fallback |
 
-- Java 21 + Spring Boot 3 resource server.
-- Keycloak realm: `infra/keycloak/voxflow-realm.json`.
-- RBAC roles: `ADMIN`, `AGENT`, `CUSTOMER`, `DEVELOPER`.
-- Protected APIs: `/api/v1/auth/me`, `/api/v1/auth/roles`, `/api/v1/auth/admin/health`.
-- Ops endpoints: `/actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness`, `/actuator/metrics`, `/actuator/prometheus`, `/api-docs`, `/swagger-ui.html`.
+### Run Backend Services
 
-Local Java and Maven are not installed yet, so backend compilation/tests need JDK 21 and Maven before running.
+```bash
+mvn -pl services/fraud-service -am spring-boot:run
+mvn -pl services/inbound-service -am spring-boot:run
+mvn -pl services/outbound-service -am spring-boot:run
+```
+
+See [docs/authentication.md](docs/authentication.md).
+
+Local Java and Maven are not installed yet on this machine, so backend compilation/tests need JDK 21 and Maven installed locally.
 
 ## What Is Built
 
@@ -30,11 +39,14 @@ Local Java and Maven are not installed yet, so backend compilation/tests need JD
 - Visual IVR mobile preview for secure fallback links.
 - Provider abstraction status cards for Exotel, Twilio, Razorpay, and Simulator adapters.
 - Event stream modeled after `voxflow.topic` RabbitMQ routing keys.
+- Keycloak-backed authentication service.
+- Fraud service for fraud verification and card decision flows.
+- Inbound service for IVR menu, DTMF, and agent transfer.
+- Outbound service for simulator outbound call requests and Visual IVR fallback.
 
 ## Next Engineering Steps
 
-- Add React + Vite + Tailwind build tooling once dependencies can be installed.
-- Create Spring Boot service skeletons for gateway, campaign, workflow, payment, notification, analytics, auth, and ai-worker.
-- Add PostgreSQL/Flyway migrations for campaigns, contacts, workflows, IVR sessions, transactions, notifications, and audit logs.
-- Add Docker Compose for PostgreSQL, Redis, RabbitMQ, Keycloak, and the frontend.
-- Convert static state into API contracts under `/api/v1`.
+- Finish tests for Fraud, Inbound, and Outbound services.
+- Wire the completed UI to these three APIs.
+- Keep all providers simulator-first.
+- Leave Docker, Kubernetes, Terraform, CI/CD, monitoring, and other DevOps work for the user.
