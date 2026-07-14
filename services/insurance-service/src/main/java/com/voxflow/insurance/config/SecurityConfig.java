@@ -1,4 +1,4 @@
-package com.voxflow.fraud.config;
+package com.voxflow.insurance.config;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -20,14 +20,13 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
-
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health/**", "/actuator/info", "/api-docs/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/api/v1/fraud/**").hasAnyRole("ADMIN", "AGENT")
+                        .requestMatchers("/api/v1/insurance/**").hasAnyRole("ADMIN", "AGENT")
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
         return http.build();

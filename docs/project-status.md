@@ -2,7 +2,7 @@
 
 ## Current Task
 
-Scope reset: only Fraud, Inbound, and Outbound services for now.
+Scope reset: keep Authentication and build only Fraud, Insurance, and Inbound services for now. Campaign management is required inside Fraud and Insurance because both workflows begin from customer campaign uploads.
 
 ## Progress Tracker
 
@@ -10,26 +10,24 @@ Scope reset: only Fraud, Inbound, and Outbound services for now.
 | --- | --- | --- |
 | React frontend | Complete | Existing UI left untouched. |
 | auth-service + Keycloak | Complete | Resource server, realm import, RBAC, actuator, Swagger. |
-| fraud-service | In progress | Fraud sessions, fraud decisions, card status, Visual IVR fallback. |
+| fraud-service | In progress | Campaign management complete (CRUD, pause/resume, metrics), fraud sessions, fraud decisions, card status, Visual IVR fallback. |
+| insurance-service | In progress | Campaign management complete (CRUD, start/pause/resume, metrics), policy renewal, payment simulator links, claims Visual IVR fallback. |
 | inbound-service | In progress | Inbound call session, DTMF menu routing, agent transfer. |
-| outbound-service | In progress | Outbound simulator call request, attempts, Visual IVR fallback. |
-| campaign-service | Removed from current scope | Replaced by focused Fraud/Inbound/Outbound services. |
-| spring-cloud-gateway | Deferred | User will decide later. |
-| payment-service | Deferred | Not in current three-service scope. |
-| notification-service | Deferred | Not in current three-service scope. |
-| analytics-service | Deferred | Not in current three-service scope. |
-| Docker / DevOps | User-owned | Do not implement for now. |
+| outbound-service | Inactive | Files preserved for history, removed from active Maven modules. Do not extend it for current scope. |
+| spring-cloud-gateway | Placeholder | Future routing layer only; no implementation in this phase. |
+| RabbitMQ / PostgreSQL / Redis | Placeholder | Architecture dependencies documented, not implemented in this phase. |
+| Docker / Kubernetes / Terraform / GitHub Actions / AWS | User-owned | Do not implement for now. |
 
 ## Current Architecture
 
 The project is now intentionally smaller than the original master specification:
 
 - `auth-service`: authentication and RBAC foundation.
-- `fraud-service`: fraud verification business flow.
-- `inbound-service`: inbound IVR business flow.
-- `outbound-service`: outbound IVR business flow.
+- `fraud-service`: campaign management, fraud verification workflow, card decision, Visual IVR.
+- `insurance-service`: campaign management, policy renewal workflow, payment simulator links, claims Visual IVR.
+- `inbound-service`: inbound call routing, DTMF, agent transfer, customer self service.
 
-Simulator-first is the default. Twilio, Exotel, RabbitMQ, Docker, Kubernetes, Terraform, and monitoring are deferred.
+Simulator-first is the default. Spring Cloud Gateway, RabbitMQ, PostgreSQL, Redis, Docker, Kubernetes, Terraform, GitHub Actions, AWS, and monitoring are deferred as placeholders.
 
 ## Verification
 
@@ -37,7 +35,7 @@ Java and Maven are not installed on this machine, so Maven tests cannot run loca
 
 ## Next Steps
 
-1. Finish the three focused services.
+1. Finish the three focused business services: Fraud, Insurance, and Inbound.
 2. Add tests for all three services.
-3. Wire the UI to Fraud, Inbound, and Outbound APIs.
+3. Wire the UI to Fraud, Insurance, and Inbound APIs.
 4. Stop before Docker/DevOps; user will handle that part.

@@ -13,10 +13,11 @@
     <description>Enterprise omnichannel communication platform monorepo.</description>
 
     <modules>
+        <module>workflow-engine</module>
         <module>services/auth-service</module>
         <module>services/fraud-service</module>
+        <module>services/insurance-service</module>
         <module>services/inbound-service</module>
-        <module>services/outbound-service</module>
     </modules>
 
     <properties>
