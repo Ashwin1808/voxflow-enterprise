@@ -8,14 +8,17 @@ Scope reset: keep Authentication and build only Fraud, Insurance, and Inbound se
 
 | Component | Status | Notes |
 | --- | --- | --- |
-| React frontend | Complete | Existing UI left untouched. |
+| React frontend | Complete | Architected into a modular React 18 ESM directory layout containing core api clients, service adapters, custom hooks, and page layout wrappers. |
 | auth-service + Keycloak | Complete | Resource server, realm import, RBAC, actuator, Swagger. |
-| fraud-service | In progress | Campaign management complete (CRUD, pause/resume, metrics), fraud sessions, fraud decisions, card status, Visual IVR fallback. |
-| insurance-service | In progress | Campaign management complete (CRUD, start/pause/resume, metrics), policy renewal, payment simulator links, claims Visual IVR fallback. |
-| inbound-service | In progress | Inbound call session, DTMF menu routing, agent transfer. |
+| fraud-service | Complete | Persistence integrated, entities mapped, and database schema initialized with Flyway. |
+| insurance-service | Complete | Persistence integrated, entities mapped, and database schema initialized with Flyway. |
+| inbound-service | Complete | Call session persistence added and schema migration script created. |
+| Compilation Fixes | Complete | Fixed record method references and constructor dependency injection in tests. |
+| RabbitMQ | Complete | Fully implemented RabbitMQ topology, exchanges, queues, routing keys, publishers, DTOs, and listener skeletons. |
+| PostgreSQL | Complete | Mapped Entities (Campaigns, Sessions, Policies, WorkflowDefinitions, Executions), JPA Repositories, Flyway Migrations, and seeded workflow definitions. |
 | outbound-service | Inactive | Files preserved for history, removed from active Maven modules. Do not extend it for current scope. |
 | spring-cloud-gateway | Placeholder | Future routing layer only; no implementation in this phase. |
-| RabbitMQ / PostgreSQL / Redis | Placeholder | Architecture dependencies documented, not implemented in this phase. |
+| Redis | Placeholder | Architecture dependencies documented, not implemented in this phase. |
 | Docker / Kubernetes / Terraform / GitHub Actions / AWS | User-owned | Do not implement for now. |
 
 ## Current Architecture

@@ -42,6 +42,13 @@ public class FraudController {
         return ApiResponse.ok("Fraud campaign contact added", fraudService.addContact(id, request));
     }
 
+    @PostMapping("/campaigns/{id}/contacts/bulk")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<FraudCampaignResponse> addContactsBulk(@PathVariable("id") UUID id,
+                                                         @Valid @RequestBody java.util.List<FraudContactRequest> requests) {
+        return ApiResponse.ok("Fraud campaign contacts added in bulk", fraudService.addContactsBulk(id, requests));
+    }
+
     @PostMapping("/campaigns/{id}/start")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<FraudCampaignResponse> startCampaign(@PathVariable("id") UUID id) {
@@ -89,6 +96,13 @@ public class FraudController {
     public ApiResponse<FraudSessionResponse> decide(@PathVariable("id") UUID id,
                                                     @Valid @RequestBody FraudDecisionRequest request) {
         return ApiResponse.ok("Fraud decision recorded", fraudService.decide(id, request));
+    }
+
+    @PostMapping("/sessions/{id}/transition")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
+    public ApiResponse<FraudSessionResponse> transitionSession(@PathVariable("id") UUID id,
+                                                    @Valid @RequestBody com.voxflow.fraud.dto.FraudTransitionRequest request) {
+        return ApiResponse.ok("Fraud session transitioned", fraudService.transitionSession(id, request));
     }
 
     @GetMapping("/sessions/{id}")

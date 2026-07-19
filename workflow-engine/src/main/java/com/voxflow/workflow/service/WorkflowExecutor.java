@@ -19,11 +19,13 @@ public class WorkflowExecutor {
     private final Map<String, WorkflowDefinition> workflowDefinitions = new HashMap<>();
     private final WorkflowStateRepository stateRepository;
     private final List<StepExecutor<?>> stepExecutors;
+    private final com.voxflow.workflow.event.EventPublisher eventPublisher;
 
-    public WorkflowExecutor(ObjectMapper objectMapper, WorkflowStateRepository stateRepository, List<StepExecutor<?>> stepExecutors) {
+    public WorkflowExecutor(ObjectMapper objectMapper, WorkflowStateRepository stateRepository, List<StepExecutor<?>> stepExecutors, com.voxflow.workflow.event.EventPublisher eventPublisher) {
         this.objectMapper = objectMapper;
         this.stateRepository = stateRepository;
         this.stepExecutors = stepExecutors;
+        this.eventPublisher = eventPublisher;
     }
 
     public void registerWorkflow(String workflowId, WorkflowDefinition definition) {
@@ -83,11 +85,12 @@ public class WorkflowExecutor {
             return context;
         }
 
-        StepExecutor<?> executor = findExecutor(currentStep);
+        StepExecutor executor = findExecutor(currentStep);
         if (executor == null) {
             throw new IllegalStateException("No executor found for step type: " + currentStep.getClass().getSimpleName());
         }
 
+        @SuppressWarnings("unchecked")
         String nextStepId = executor.execute(currentStep, context);
 
         if (nextStepId == null) {
@@ -100,6 +103,17 @@ public class WorkflowExecutor {
             context.setCurrentStepId(nextStepId);
             stateRepository.saveSession(context);
         }
+
+        try {
+            eventPublisher.publish("call.status", new com.voxflow.workflow.event.dto.CallEvent(
+                    java.util.UUID.fromString(sessionId), 
+                    (String) context.getVariables().get("customerPhone"),
+                    currentStep.getId(),
+                    "EXECUTED",
+                    null,
+                    java.time.OffsetDateTime.now()
+            ));
+        } catch (Exception e) {}
 
         return context;
     }

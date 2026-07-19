@@ -1,0 +1,38 @@
+package com.voxflow.workflow.domain;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.AttributeConverter;
+import jakarta.persistence.Converter;
+import java.util.HashMap;
+import java.util.Map;
+
+@Converter
+public class JacksonAttributeConverter implements AttributeConverter<Map<String, Object>, String> {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public String convertToDatabaseColumn(Map<String, Object> attribute) {
+        if (attribute == null) {
+            return "{}";
+        }
+        try {
+            return objectMapper.writeValueAsString(attribute);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to serialize map: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Map<String, Object> convertToEntityAttribute(String dbData) {
+        if (dbData == null || dbData.isEmpty()) {
+            return new HashMap<>();
+        }
+        try {
+            return objectMapper.readValue(dbData, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to deserialize map: " + e.getMessage(), e);
+        }
+    }
+}

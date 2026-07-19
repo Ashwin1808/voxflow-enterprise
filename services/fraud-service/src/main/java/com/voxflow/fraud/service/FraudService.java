@@ -1,5 +1,7 @@
 package com.voxflow.fraud.service;
 
+import com.voxflow.fraud.domain.FraudCampaign;
+import com.voxflow.fraud.domain.FraudSession;
 import com.voxflow.fraud.dto.CampaignMetrics;
 import com.voxflow.fraud.dto.CampaignStatus;
 import com.voxflow.fraud.dto.FraudDecision;
@@ -10,29 +12,38 @@ import com.voxflow.fraud.dto.FraudContactRequest;
 import com.voxflow.fraud.dto.FraudSessionRequest;
 import com.voxflow.fraud.dto.FraudSessionResponse;
 import com.voxflow.fraud.dto.FraudStatus;
-import com.voxflow.workflow.execution.ExecutionContext;
+import com.voxflow.fraud.repository.FraudCampaignRepository;
+import com.voxflow.fraud.repository.FraudSessionRepository;
+import com.voxflow.workflow.event.EventPublisher;
+import com.voxflow.workflow.event.dto.*;
 import com.voxflow.workflow.service.WorkflowExecutor;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional
 public class FraudService {
 
-    private final Map<UUID, FraudSessionResponse> sessions = new ConcurrentHashMap<>();
-    private final Map<UUID, FraudCampaignResponse> campaigns = new ConcurrentHashMap<>();
+    private final FraudCampaignRepository campaignRepository;
+    private final FraudSessionRepository sessionRepository;
     private final WorkflowExecutor workflowExecutor;
+    private final EventPublisher eventPublisher;
 
-    public FraudService(WorkflowExecutor workflowExecutor) {
+    public FraudService(FraudCampaignRepository campaignRepository, FraudSessionRepository sessionRepository, WorkflowExecutor workflowExecutor, EventPublisher eventPublisher) {
+        this.campaignRepository = campaignRepository;
+        this.sessionRepository = sessionRepository;
         this.workflowExecutor = workflowExecutor;
+        this.eventPublisher = eventPublisher;
     }
 
     public FraudCampaignResponse createCampaign(FraudCampaignRequest request) {
         OffsetDateTime now = OffsetDateTime.now();
-        FraudCampaignResponse campaign = new FraudCampaignResponse(
+        FraudCampaign campaign = new FraudCampaign(
                 UUID.randomUUID(),
                 request.name(),
                 request.workflowName(),
@@ -41,91 +52,146 @@ public class FraudService {
                 java.util.List.of(),
                 now,
                 now);
-        campaigns.put(campaign.id(), campaign);
-        return campaign;
+        campaignRepository.save(campaign);
+        
+        eventPublisher.publish("campaign.created", new CampaignEvent(
+                campaign.getId(),
+                campaign.getName(),
+                campaign.getWorkflowName(),
+                campaign.getStatus().name(),
+                campaign.getTotalContacts(),
+                now));
+        
+        return toCampaignResponse(campaign);
     }
 
     public FraudCampaignResponse addContact(UUID campaignId, FraudContactRequest request) {
-        FraudCampaignResponse campaign = getCampaign(campaignId);
-        FraudSessionResponse session = createSession(new FraudSessionRequest(
+        FraudCampaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud campaign not found: " + campaignId));
+        
+        FraudSession session = new FraudSession(
+                UUID.randomUUID(),
+                campaign,
                 request.customerPhone(),
                 request.cardLastFour(),
                 request.merchant(),
-                request.amount()));
-        java.util.List<FraudSessionResponse> contacts = new java.util.ArrayList<>(campaign.contacts());
-        contacts.add(session);
-        FraudCampaignResponse updated = new FraudCampaignResponse(
-                campaign.id(), campaign.name(), campaign.workflowName(), CampaignStatus.READY,
-                contacts.size(), java.util.List.copyOf(contacts), campaign.createdAt(), OffsetDateTime.now());
-        campaigns.put(campaignId, updated);
-        return updated;
+                request.amount(),
+                FraudStatus.PENDING,
+                "ACTIVE",
+                null,
+                OffsetDateTime.now(),
+                OffsetDateTime.now());
+        
+        sessionRepository.save(session);
+        
+        campaign.getContacts().add(session);
+        campaign.setTotalContacts(campaign.getContacts().size());
+        campaign.setStatus(CampaignStatus.READY);
+        campaign.setUpdatedAt(OffsetDateTime.now());
+        campaignRepository.save(campaign);
+        
+        return toCampaignResponse(campaign);
     }
 
     public FraudCampaignResponse startCampaign(UUID campaignId) {
-        FraudCampaignResponse campaign = getCampaign(campaignId);
-        if (campaign.totalContacts() == 0) {
+        FraudCampaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud campaign not found: " + campaignId));
+        if (campaign.getTotalContacts() == 0) {
             throw new IllegalStateException("Fraud campaign must have contacts before start");
         }
-        FraudCampaignResponse updated = new FraudCampaignResponse(
-                campaign.id(), campaign.name(), campaign.workflowName(), CampaignStatus.RUNNING,
-                campaign.totalContacts(), campaign.contacts(), campaign.createdAt(), OffsetDateTime.now());
-        campaigns.put(campaignId, updated);
-        return updated;
+        campaign.setStatus(CampaignStatus.RUNNING);
+        campaign.setUpdatedAt(OffsetDateTime.now());
+        campaignRepository.save(campaign);
+        
+        eventPublisher.publish("campaign.started", new CampaignEvent(
+                campaign.getId(),
+                campaign.getName(),
+                campaign.getWorkflowName(),
+                "RUNNING",
+                campaign.getTotalContacts(),
+                OffsetDateTime.now()));
+
+        if (campaign.getWorkflowName() != null && !campaign.getWorkflowName().isEmpty()) {
+            for (FraudSession session : campaign.getContacts()) {
+                if (session.getStatus() == FraudStatus.PENDING) {
+                    Map<String, Object> variables = new HashMap<>();
+                    variables.put("sessionId", session.getId().toString());
+                    variables.put("customerPhone", session.getCustomerPhone());
+                    variables.put("cardLastFour", session.getCardLastFour());
+                    variables.put("merchant", session.getMerchant());
+                    variables.put("amount", session.getAmount());
+                    try {
+                        workflowExecutor.startWorkflow(campaign.getWorkflowName(), variables);
+                        session.setStatus(FraudStatus.QUEUED);
+                    } catch (Exception e) {
+                    }
+                }
+            }
+            sessionRepository.saveAll(campaign.getContacts());
+        }
+                
+        return toCampaignResponse(campaign);
     }
 
     public FraudCampaignResponse pauseCampaign(UUID campaignId) {
-        FraudCampaignResponse campaign = getCampaign(campaignId);
-        if (campaign.status() != CampaignStatus.RUNNING) {
+        FraudCampaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud campaign not found: " + campaignId));
+        if (campaign.getStatus() != CampaignStatus.RUNNING) {
             throw new IllegalStateException("Fraud campaign must be RUNNING to pause");
         }
-        FraudCampaignResponse updated = new FraudCampaignResponse(
-                campaign.id(), campaign.name(), campaign.workflowName(), CampaignStatus.PAUSED,
-                campaign.totalContacts(), campaign.contacts(), campaign.createdAt(), OffsetDateTime.now());
-        campaigns.put(campaignId, updated);
-        return updated;
+        campaign.setStatus(CampaignStatus.PAUSED);
+        campaign.setUpdatedAt(OffsetDateTime.now());
+        campaignRepository.save(campaign);
+        return toCampaignResponse(campaign);
     }
 
     public FraudCampaignResponse resumeCampaign(UUID campaignId) {
-        FraudCampaignResponse campaign = getCampaign(campaignId);
-        if (campaign.status() != CampaignStatus.PAUSED) {
+        FraudCampaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud campaign not found: " + campaignId));
+        if (campaign.getStatus() != CampaignStatus.PAUSED) {
             throw new IllegalStateException("Fraud campaign must be PAUSED to resume");
         }
-        FraudCampaignResponse updated = new FraudCampaignResponse(
-                campaign.id(), campaign.name(), campaign.workflowName(), CampaignStatus.RUNNING,
-                campaign.totalContacts(), campaign.contacts(), campaign.createdAt(), OffsetDateTime.now());
-        campaigns.put(campaignId, updated);
-        return updated;
+        campaign.setStatus(CampaignStatus.RUNNING);
+        campaign.setUpdatedAt(OffsetDateTime.now());
+        campaignRepository.save(campaign);
+        return toCampaignResponse(campaign);
     }
 
     public FraudCampaignResponse getCampaign(UUID id) {
-        FraudCampaignResponse campaign = campaigns.get(id);
-        if (campaign == null) {
-            throw new IllegalArgumentException("Fraud campaign not found: " + id);
-        }
-        return campaign;
+        return campaignRepository.findById(id)
+                .map(this::toCampaignResponse)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud campaign not found: " + id));
     }
 
     public java.util.List<FraudCampaignResponse> listCampaigns() {
-        return new java.util.ArrayList<>(campaigns.values());
+        return campaignRepository.findAll().stream()
+                .map(this::toCampaignResponse)
+                .toList();
     }
 
     public CampaignMetrics getCampaignMetrics(UUID campaignId) {
-        FraudCampaignResponse campaign = getCampaign(campaignId);
-        long total = campaign.totalContacts();
-        long completed = campaign.contacts().stream()
-                .filter(c -> c.status() == FraudStatus.APPROVED || c.status() == FraudStatus.BLOCKED)
+        FraudCampaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud campaign not found: " + campaignId));
+        long total = campaign.getTotalContacts();
+        long completed = campaign.getContacts().stream()
+                .filter(c -> c.getStatus() == FraudStatus.APPROVED || c.getStatus() == FraudStatus.BLOCKED)
                 .count();
-        long failed = campaign.contacts().stream()
-                .filter(c -> c.status() == FraudStatus.VISUAL_IVR_SENT)
+        long failed = campaign.getContacts().stream()
+                .filter(c -> c.getStatus() == FraudStatus.VISUAL_IVR_SENT)
                 .count();
         double retryRate = total > 0 ? (double) failed / total : 0.0;
         return new CampaignMetrics(total, completed, failed, retryRate);
     }
 
     public FraudSessionResponse createSession(FraudSessionRequest request) {
+        return createSession(request, null);
+    }
+
+    public FraudSessionResponse createSession(FraudSessionRequest request, String workflowName) {
         OffsetDateTime now = OffsetDateTime.now();
-        FraudSessionResponse response = new FraudSessionResponse(
+        FraudSession session = new FraudSession(
                 UUID.randomUUID(),
+                null,
                 request.customerPhone(),
                 request.cardLastFour(),
                 request.merchant(),
@@ -135,49 +201,117 @@ public class FraudService {
                 null,
                 now,
                 now);
-        sessions.put(response.id(), response);
-        
-        // Start workflow if workflow name is provided
-        if (request.workflowName() != null && !request.workflowName().isEmpty()) {
-            Map<String, Object> variables = new HashMap<>();
-            variables.put("customerPhone", request.customerPhone());
-            variables.put("cardLastFour", request.cardLastFour());
-            variables.put("merchant", request.merchant());
-            variables.put("amount", request.amount());
-            
-            try {
-                ExecutionContext workflowContext = workflowExecutor.startWorkflow(request.workflowName(), variables);
-                // Store workflow session ID in fraud session
-                // This would be extended to link workflow session with fraud session
-            } catch (Exception e) {
-                // Log but don't fail - workflow is optional
-            }
-        }
-        
-        return response;
+        sessionRepository.save(session);
+        return toSessionResponse(session);
     }
 
     public FraudSessionResponse decide(UUID id, FraudDecisionRequest request) {
-        FraudSessionResponse current = getSession(id);
+        FraudSession current = sessionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud session not found: " + id));
         FraudStatus status = switch (request.decision()) {
             case APPROVE -> FraudStatus.APPROVED;
             case BLOCK -> FraudStatus.BLOCKED;
             case SEND_VISUAL_IVR -> FraudStatus.VISUAL_IVR_SENT;
         };
-        String cardStatus = request.decision() == FraudDecision.BLOCK ? "BLOCKED" : current.cardStatus();
-        String visualUrl = request.decision() == FraudDecision.SEND_VISUAL_IVR ? "/visual-ivr/fraud/" + id : current.visualIvrUrl();
-        FraudSessionResponse updated = new FraudSessionResponse(
-                current.id(), current.customerPhone(), current.cardLastFour(), current.merchant(), current.amount(),
-                status, cardStatus, visualUrl, current.createdAt(), OffsetDateTime.now());
-        sessions.put(id, updated);
-        return updated;
+        String cardStatus = request.decision() == FraudDecision.BLOCK ? "BLOCKED" : current.getCardStatus();
+        String visualUrl = request.decision() == FraudDecision.SEND_VISUAL_IVR ? "/visual-ivr/fraud/" + id : current.getVisualIvrUrl();
+        
+        current.setStatus(status);
+        current.setCardStatus(cardStatus);
+        current.setVisualIvrUrl(visualUrl);
+        current.setUpdatedAt(OffsetDateTime.now());
+        sessionRepository.save(current);
+        
+        if (status == FraudStatus.VISUAL_IVR_SENT) {
+            eventPublisher.publish("visualivr.generated", new VisualIvrEvent(
+                    id, current.getCustomerPhone(), "fraud_fallback", visualUrl, OffsetDateTime.now()));
+        } else {
+            eventPublisher.publish("workflow.completed", new WorkflowCompletedEvent(
+                    id.toString(), "fraud_verification:2.0", status.name(), Map.of("cardStatus", cardStatus), OffsetDateTime.now()));
+        }
+        
+        return toSessionResponse(current);
+    }
+
+    public FraudCampaignResponse addContactsBulk(UUID campaignId, java.util.List<FraudContactRequest> requests) {
+        FraudCampaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud campaign not found: " + campaignId));
+        
+        java.util.List<FraudSession> sessions = new java.util.ArrayList<>();
+        OffsetDateTime now = OffsetDateTime.now();
+        for (FraudContactRequest request : requests) {
+            FraudSession session = new FraudSession(
+                    UUID.randomUUID(),
+                    campaign,
+                    request.customerPhone(),
+                    request.cardLastFour(),
+                    request.merchant(),
+                    request.amount(),
+                    FraudStatus.PENDING,
+                    "ACTIVE",
+                    null,
+                    now,
+                    now);
+            sessions.add(session);
+        }
+        
+        sessionRepository.saveAll(sessions);
+        campaign.getContacts().addAll(sessions);
+        campaign.setTotalContacts(campaign.getContacts().size());
+        campaign.setStatus(CampaignStatus.READY);
+        campaign.setUpdatedAt(now);
+        campaignRepository.save(campaign);
+        
+        return toCampaignResponse(campaign);
+    }
+
+    public FraudSessionResponse transitionSession(UUID id, com.voxflow.fraud.dto.FraudTransitionRequest request) {
+        FraudSession current = sessionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud session not found: " + id));
+        current.setStatus(request.status());
+        current.setUpdatedAt(OffsetDateTime.now());
+        sessionRepository.save(current);
+
+        eventPublisher.publish("call.status", new CallEvent(
+                id, current.getCustomerPhone(), "fraud_verification", request.status().name(), null, OffsetDateTime.now()));
+                
+        return toSessionResponse(current);
     }
 
     public FraudSessionResponse getSession(UUID id) {
-        FraudSessionResponse session = sessions.get(id);
-        if (session == null) {
-            throw new IllegalArgumentException("Fraud session not found: " + id);
-        }
-        return session;
+        return sessionRepository.findById(id)
+                .map(this::toSessionResponse)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud session not found: " + id));
+    }
+
+    @RabbitListener(queues = "payment.queue")
+    public void handlePaymentEvent(PaymentEvent event) {
+        System.out.println("Fraud service received payment event: " + event);
+    }
+
+    private FraudCampaignResponse toCampaignResponse(FraudCampaign campaign) {
+        return new FraudCampaignResponse(
+                campaign.getId(),
+                campaign.getName(),
+                campaign.getWorkflowName(),
+                campaign.getStatus(),
+                campaign.getTotalContacts(),
+                campaign.getContacts().stream().map(this::toSessionResponse).toList(),
+                campaign.getCreatedAt(),
+                campaign.getUpdatedAt());
+    }
+
+    private FraudSessionResponse toSessionResponse(FraudSession session) {
+        return new FraudSessionResponse(
+                session.getId(),
+                session.getCustomerPhone(),
+                session.getCardLastFour(),
+                session.getMerchant(),
+                session.getAmount(),
+                session.getStatus(),
+                session.getCardStatus(),
+                session.getVisualIvrUrl(),
+                session.getCreatedAt(),
+                session.getUpdatedAt());
     }
 }

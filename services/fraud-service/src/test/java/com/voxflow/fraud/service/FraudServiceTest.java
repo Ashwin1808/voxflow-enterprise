@@ -9,12 +9,50 @@ import com.voxflow.fraud.dto.FraudContactRequest;
 import com.voxflow.fraud.dto.FraudDecision;
 import com.voxflow.fraud.dto.FraudDecisionRequest;
 import com.voxflow.fraud.dto.FraudStatus;
+import com.voxflow.fraud.repository.FraudCampaignRepository;
+import com.voxflow.fraud.repository.FraudSessionRepository;
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class FraudServiceTest {
 
-    private final FraudService fraudService = new FraudService();
+    private final FraudCampaignRepository campaignRepository = org.mockito.Mockito.mock(FraudCampaignRepository.class);
+    private final FraudSessionRepository sessionRepository = org.mockito.Mockito.mock(FraudSessionRepository.class);
+    private final com.voxflow.workflow.service.WorkflowExecutor workflowExecutor = org.mockito.Mockito.mock(com.voxflow.workflow.service.WorkflowExecutor.class);
+    private final com.voxflow.workflow.event.EventPublisher eventPublisher = org.mockito.Mockito.mock(com.voxflow.workflow.event.EventPublisher.class);
+    private final FraudService fraudService = new FraudService(campaignRepository, sessionRepository, workflowExecutor, eventPublisher);
+
+    private final Map<UUID, com.voxflow.fraud.domain.FraudCampaign> campaignDb = new HashMap<>();
+    private final Map<UUID, com.voxflow.fraud.domain.FraudSession> sessionDb = new HashMap<>();
+
+    @BeforeEach
+    void setUp() {
+        campaignDb.clear();
+        sessionDb.clear();
+
+        org.mockito.Mockito.when(campaignRepository.save(org.mockito.Mockito.any(com.voxflow.fraud.domain.FraudCampaign.class)))
+                .thenAnswer(invocation -> {
+                    com.voxflow.fraud.domain.FraudCampaign c = invocation.getArgument(0);
+                    campaignDb.put(c.getId(), c);
+                    return c;
+                });
+        org.mockito.Mockito.when(campaignRepository.findById(org.mockito.Mockito.any(UUID.class)))
+                .thenAnswer(invocation -> Optional.ofNullable(campaignDb.get(invocation.getArgument(0))));
+
+        org.mockito.Mockito.when(sessionRepository.save(org.mockito.Mockito.any(com.voxflow.fraud.domain.FraudSession.class)))
+                .thenAnswer(invocation -> {
+                    com.voxflow.fraud.domain.FraudSession s = invocation.getArgument(0);
+                    sessionDb.put(s.getId(), s);
+                    return s;
+                });
+        org.mockito.Mockito.when(sessionRepository.findById(org.mockito.Mockito.any(UUID.class)))
+                .thenAnswer(invocation -> Optional.ofNullable(sessionDb.get(invocation.getArgument(0))));
+    }
 
     @Test
     void createsCampaignAddsContactAndStartsCampaign() {

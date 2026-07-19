@@ -27,7 +27,7 @@ public class WorkflowController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<String> registerWorkflow(@Valid @RequestBody WorkflowRequest request) {
-        String workflowId = request.name() + ":" + request.version();
+        String workflowId = request.getName() + ":" + request.getVersion();
         workflowExecutor.registerWorkflow(workflowId, request.getWorkflowJson());
         return ApiResponse.ok("Workflow registered", workflowId);
     }

@@ -5,12 +5,50 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.voxflow.insurance.dto.InsuranceCampaignRequest;
 import com.voxflow.insurance.dto.PolicyContactRequest;
 import com.voxflow.insurance.dto.PolicyStatus;
+import com.voxflow.insurance.repository.InsuranceCampaignRepository;
+import com.voxflow.insurance.repository.InsurancePolicyRepository;
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class InsuranceServiceTest {
 
-    private final InsuranceService insuranceService = new InsuranceService();
+    private final InsuranceCampaignRepository campaignRepository = org.mockito.Mockito.mock(InsuranceCampaignRepository.class);
+    private final InsurancePolicyRepository policyRepository = org.mockito.Mockito.mock(InsurancePolicyRepository.class);
+    private final com.voxflow.workflow.service.WorkflowExecutor workflowExecutor = org.mockito.Mockito.mock(com.voxflow.workflow.service.WorkflowExecutor.class);
+    private final com.voxflow.workflow.event.EventPublisher eventPublisher = org.mockito.Mockito.mock(com.voxflow.workflow.event.EventPublisher.class);
+    private final InsuranceService insuranceService = new InsuranceService(campaignRepository, policyRepository, workflowExecutor, eventPublisher);
+
+    private final Map<UUID, com.voxflow.insurance.domain.InsuranceCampaign> campaignDb = new HashMap<>();
+    private final Map<UUID, com.voxflow.insurance.domain.InsurancePolicy> policyDb = new HashMap<>();
+
+    @BeforeEach
+    void setUp() {
+        campaignDb.clear();
+        policyDb.clear();
+
+        org.mockito.Mockito.when(campaignRepository.save(org.mockito.Mockito.any(com.voxflow.insurance.domain.InsuranceCampaign.class)))
+                .thenAnswer(invocation -> {
+                    com.voxflow.insurance.domain.InsuranceCampaign c = invocation.getArgument(0);
+                    campaignDb.put(c.getId(), c);
+                    return c;
+                });
+        org.mockito.Mockito.when(campaignRepository.findById(org.mockito.Mockito.any(UUID.class)))
+                .thenAnswer(invocation -> Optional.ofNullable(campaignDb.get(invocation.getArgument(0))));
+
+        org.mockito.Mockito.when(policyRepository.save(org.mockito.Mockito.any(com.voxflow.insurance.domain.InsurancePolicy.class)))
+                .thenAnswer(invocation -> {
+                    com.voxflow.insurance.domain.InsurancePolicy p = invocation.getArgument(0);
+                    policyDb.put(p.getId(), p);
+                    return p;
+                });
+        org.mockito.Mockito.when(policyRepository.findById(org.mockito.Mockito.any(UUID.class)))
+                .thenAnswer(invocation -> Optional.ofNullable(policyDb.get(invocation.getArgument(0))));
+    }
 
     @Test
     void createsCampaignAndAddsPolicyForRenewal() {

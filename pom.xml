@@ -18,6 +18,8 @@
         <module>services/fraud-service</module>
         <module>services/insurance-service</module>
         <module>services/inbound-service</module>
+        <module>services/provider-service</module>
+        <module>services/analytics-service</module>
     </modules>
 
     <properties>
@@ -61,6 +63,7 @@
                     <version>3.13.0</version>
                     <configuration>
                         <release>${java.version}</release>
+                        <parameters>true</parameters>
                     </configuration>
                 </plugin>
                 <plugin>
