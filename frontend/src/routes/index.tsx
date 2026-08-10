@@ -5,6 +5,7 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import useAuth from "../hooks/useAuth";
 
 const Login = lazy(() => import("../pages/Login/Login"));
+const VisualIvr = lazy(() => import("../pages/VisualIvr/VisualIvr"));
 const Dashboard = lazy(() => import("../pages/Dashboard/Dashboard"));
 const Campaigns = lazy(() => import("../pages/Campaigns/Campaigns"));
 const Sessions = lazy(() => import("../pages/Sessions/Sessions"));
@@ -55,6 +56,7 @@ export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={withSuspense(<Login />)} />
+      <Route path="/visual-ivr/:token" element={withSuspense(<VisualIvr />)} />
       <Route element={<RequireAuth />}>
         <Route element={<DashboardLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

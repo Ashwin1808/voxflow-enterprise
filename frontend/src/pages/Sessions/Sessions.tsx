@@ -179,7 +179,19 @@ export default function Sessions() {
                       {timeAgo(session.updatedAt)}
                     </TableCell>
                     <TableCell align="right">
-                      {canDecide && !terminal ? (
+                      {session.status === "VISUAL_IVR_SENT" && session.visualIvrUrl ? (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => {
+                            const url = session.visualIvrUrl;
+                            if (url) window.open(url, "_blank", "noopener,noreferrer");
+                          }}
+                          sx={{ color: "#8F74FF", borderColor: "rgba(124,92,255,0.4)", "&:hover": { borderColor: "#8F74FF", bgcolor: "rgba(124,92,255,0.08)" } }}
+                        >
+                          Open link
+                        </Button>
+                      ) : canDecide && !terminal ? (
                         <Box sx={{ display: "flex", gap: 0.75, justifyContent: "flex-end" }}>
                           <Button
                             size="small"
