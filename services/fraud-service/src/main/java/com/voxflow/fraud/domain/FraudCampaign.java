@@ -47,7 +47,7 @@ public class FraudCampaign {
         this.workflowName = workflowName;
         this.status = status;
         this.totalContacts = totalContacts;
-        this.contacts = contacts != null ? contacts : new ArrayList<>();
+        this.contacts = contacts != null ? new ArrayList<>(contacts) : new ArrayList<>();
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }

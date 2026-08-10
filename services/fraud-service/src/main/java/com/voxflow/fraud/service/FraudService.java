@@ -2,6 +2,7 @@ package com.voxflow.fraud.service;
 
 import com.voxflow.fraud.domain.FraudCampaign;
 import com.voxflow.fraud.domain.FraudSession;
+import com.voxflow.fraud.domain.VisualIvrToken;
 import com.voxflow.fraud.dto.CampaignMetrics;
 import com.voxflow.fraud.dto.CampaignStatus;
 import com.voxflow.fraud.dto.FraudDecision;
@@ -12,6 +13,9 @@ import com.voxflow.fraud.dto.FraudContactRequest;
 import com.voxflow.fraud.dto.FraudSessionRequest;
 import com.voxflow.fraud.dto.FraudSessionResponse;
 import com.voxflow.fraud.dto.FraudStatus;
+import com.voxflow.fraud.dto.VisualIvrDecisionResponse;
+import com.voxflow.fraud.dto.VisualIvrPublicDecision;
+import com.voxflow.fraud.dto.VisualIvrSummary;
 import com.voxflow.fraud.repository.FraudCampaignRepository;
 import com.voxflow.fraud.repository.FraudSessionRepository;
 import com.voxflow.workflow.event.EventPublisher;
@@ -33,12 +37,14 @@ public class FraudService {
     private final FraudSessionRepository sessionRepository;
     private final WorkflowExecutor workflowExecutor;
     private final EventPublisher eventPublisher;
+    private final VisualIvrTokenService visualIvrTokenService;
 
-    public FraudService(FraudCampaignRepository campaignRepository, FraudSessionRepository sessionRepository, WorkflowExecutor workflowExecutor, EventPublisher eventPublisher) {
+    public FraudService(FraudCampaignRepository campaignRepository, FraudSessionRepository sessionRepository, WorkflowExecutor workflowExecutor, EventPublisher eventPublisher, VisualIvrTokenService visualIvrTokenService) {
         this.campaignRepository = campaignRepository;
         this.sessionRepository = sessionRepository;
         this.workflowExecutor = workflowExecutor;
         this.eventPublisher = eventPublisher;
+        this.visualIvrTokenService = visualIvrTokenService;
     }
 
     public FraudCampaignResponse createCampaign(FraudCampaignRequest request) {
@@ -214,7 +220,10 @@ public class FraudService {
             case SEND_VISUAL_IVR -> FraudStatus.VISUAL_IVR_SENT;
         };
         String cardStatus = request.decision() == FraudDecision.BLOCK ? "BLOCKED" : current.getCardStatus();
-        String visualUrl = request.decision() == FraudDecision.SEND_VISUAL_IVR ? "/visual-ivr/fraud/" + id : current.getVisualIvrUrl();
+        String visualUrl = current.getVisualIvrUrl();
+        if (request.decision() == FraudDecision.SEND_VISUAL_IVR) {
+            visualUrl = "/public/visual-ivr/" + visualIvrTokenService.createForSession(id).getToken();
+        }
         
         current.setStatus(status);
         current.setCardStatus(cardStatus);
@@ -282,6 +291,72 @@ public class FraudService {
         return sessionRepository.findById(id)
                 .map(this::toSessionResponse)
                 .orElseThrow(() -> new IllegalArgumentException("Fraud session not found: " + id));
+    }
+
+    @Transactional(readOnly = true)
+    public VisualIvrSummary resolveVisualIvr(String rawToken) {
+        VisualIvrToken token = visualIvrTokenService.resolve(rawToken);
+        FraudSession session = sessionRepository.findById(token.getSessionId())
+                .orElseThrow(() -> new IllegalArgumentException("Fraud session not found"));
+        return new VisualIvrSummary(
+                session.getMerchant(),
+                session.getAmount(),
+                session.getCardLastFour(),
+                maskPhone(session.getCustomerPhone()),
+                session.getCreatedAt(),
+                session.getStatus().name());
+    }
+
+    @Transactional
+    public VisualIvrDecisionResponse decideVisualIvr(String rawToken, VisualIvrPublicDecision decision) {
+        VisualIvrToken token = visualIvrTokenService.redeem(rawToken);
+        FraudSession session = sessionRepository.findById(token.getSessionId())
+                .orElseThrow(() -> new IllegalArgumentException("Fraud session not found"));
+
+        String outcome;
+        FraudStatus status;
+        String cardStatus;
+        switch (decision) {
+            case APPROVE -> {
+                outcome = "APPROVED";
+                status = FraudStatus.APPROVED;
+                cardStatus = session.getCardStatus();
+            }
+            case DECLINE -> {
+                outcome = "DECLINED";
+                status = FraudStatus.BLOCKED;
+                cardStatus = "BLOCKED";
+                session.setCardStatus(cardStatus);
+            }
+            default -> throw new IllegalArgumentException("Unsupported decision: " + decision);
+        }
+
+        session.setStatus(status);
+        session.setUpdatedAt(OffsetDateTime.now());
+        sessionRepository.save(session);
+
+        eventPublisher.publish("workflow.completed", new WorkflowCompletedEvent(
+                session.getId().toString(),
+                "fraud_verification:2.0",
+                status.name(),
+                Map.of("cardStatus", cardStatus, "channel", "visual_ivr"),
+                OffsetDateTime.now()));
+
+        return new VisualIvrDecisionResponse(
+                outcome,
+                outcome.equals("APPROVED")
+                        ? "Transaction confirmed. No further action needed."
+                        : "Transaction declined. Your card has been blocked and a case has been raised.",
+                status,
+                cardStatus);
+    }
+
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 4) {
+            return phone;
+        }
+        String suffix = phone.substring(phone.length() - 2);
+        return "+" + "•".repeat(Math.max(0, phone.length() - 2)) + suffix;
     }
 
     @RabbitListener(queues = "payment.queue")

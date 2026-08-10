@@ -25,7 +25,8 @@ class FraudServiceTest {
     private final FraudSessionRepository sessionRepository = org.mockito.Mockito.mock(FraudSessionRepository.class);
     private final com.voxflow.workflow.service.WorkflowExecutor workflowExecutor = org.mockito.Mockito.mock(com.voxflow.workflow.service.WorkflowExecutor.class);
     private final com.voxflow.workflow.event.EventPublisher eventPublisher = org.mockito.Mockito.mock(com.voxflow.workflow.event.EventPublisher.class);
-    private final FraudService fraudService = new FraudService(campaignRepository, sessionRepository, workflowExecutor, eventPublisher);
+    private final VisualIvrTokenService visualIvrTokenService = org.mockito.Mockito.mock(VisualIvrTokenService.class);
+    private final FraudService fraudService = new FraudService(campaignRepository, sessionRepository, workflowExecutor, eventPublisher, visualIvrTokenService);
 
     private final Map<UUID, com.voxflow.fraud.domain.FraudCampaign> campaignDb = new HashMap<>();
     private final Map<UUID, com.voxflow.fraud.domain.FraudSession> sessionDb = new HashMap<>();
@@ -96,9 +97,17 @@ class FraudServiceTest {
                 BigDecimal.valueOf(42000)));
         var session = updated.contacts().getFirst();
 
+        var token = new com.voxflow.fraud.domain.VisualIvrToken(
+                UUID.randomUUID(), session.id(), "abc-123-token",
+                com.voxflow.fraud.domain.VisualIvrToken.TokenStatus.ACTIVE,
+                java.time.OffsetDateTime.now().plusHours(1),
+                java.time.OffsetDateTime.now(), null);
+        org.mockito.Mockito.when(visualIvrTokenService.createForSession(session.id())).thenReturn(token);
+
         var decided = fraudService.decide(session.id(), new FraudDecisionRequest(FraudDecision.SEND_VISUAL_IVR));
 
         assertThat(decided.status()).isEqualTo(FraudStatus.VISUAL_IVR_SENT);
-        assertThat(decided.visualIvrUrl()).isEqualTo("/visual-ivr/fraud/" + session.id());
+        assertThat(decided.visualIvrUrl()).isEqualTo("/public/visual-ivr/abc-123-token");
+        org.mockito.Mockito.verify(visualIvrTokenService).createForSession(session.id());
     }
 }
