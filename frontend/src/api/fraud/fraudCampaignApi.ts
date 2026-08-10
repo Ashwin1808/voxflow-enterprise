@@ -7,6 +7,7 @@ import type {
   FraudContactInput,
   FraudDecision,
   FraudSession,
+  FraudSessionInput,
   FraudStatus,
 } from "../../types/fraud";
 
@@ -77,5 +78,10 @@ export async function transitionSession(
 
 export async function getFraudSession(sessionId: string): Promise<FraudSession> {
   const { data } = await apiClient.get<FraudSession>(`${BASE}/sessions/${sessionId}`);
+  return data;
+}
+
+export async function createFraudSession(input: FraudSessionInput): Promise<FraudSession> {
+  const { data } = await apiClient.post<FraudSession>(`${BASE}/sessions`, input);
   return data;
 }

@@ -63,3 +63,10 @@ export interface CampaignMetrics {
 }
 
 export type CampaignCommand = "start" | "pause" | "resume";
+
+export interface FraudSessionInput {
+  customerPhone: string;
+  cardLastFour: string;
+  merchant: string;
+  amount: number;
+}

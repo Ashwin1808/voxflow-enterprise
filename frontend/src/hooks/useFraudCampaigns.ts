@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createFraudCampaign,
+  createFraudSession,
   getCampaignMetrics,
   listFraudCampaigns,
   recordSessionDecision,
   sendCampaignCommand,
+  transitionSession,
   uploadFraudContacts,
 } from "../api/fraud/fraudCampaignApi";
 import type {
@@ -12,6 +14,8 @@ import type {
   FraudCampaignInput,
   FraudContactInput,
   FraudDecision,
+  FraudSessionInput,
+  FraudStatus,
 } from "../types/fraud";
 
 export const fraudKeys = {
@@ -75,6 +79,28 @@ export function useSessionDecision() {
       recordSessionDecision(sessionId, decision),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fraudKeys.list() });
+    },
+  });
+}
+
+export function useCreateFraudSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: FraudSessionInput) => createFraudSession(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: fraudKeys.list() });
+    },
+  });
+}
+
+export function useTransitionSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, status }: { sessionId: string; status: FraudStatus }) =>
+      transitionSession(sessionId, status),
+    onSuccess: (session) => {
+      queryClient.invalidateQueries({ queryKey: fraudKeys.list() });
+      queryClient.setQueryData(fraudKeys.detail(session.id), session);
     },
   });
 }

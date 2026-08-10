@@ -22,6 +22,7 @@ export type NavItem = {
   path: string;
   icon: ReactNode;
   roles?: string[];
+  hidden?: boolean;
   badge?: "active";
 };
 
@@ -48,6 +49,13 @@ export const NAV_SECTIONS: NavSection[] = [
         path: "/fraud",
         icon: <ShieldOutlinedIcon fontSize="small" />,
         roles: ["ADMIN"],
+      },
+      {
+        label: "Simulator",
+        path: "/simulator",
+        icon: <AutoAwesomeOutlinedIcon fontSize="small" />,
+        roles: ["ADMIN"],
+        hidden: import.meta.env.VITE_SIMULATOR_ENABLED !== "true",
       },
     ],
   },
@@ -115,7 +123,8 @@ export function visibleSections(hasAnyRole: (roles: string[]) => boolean): NavSe
   return NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter(
-      (item) => !item.roles || hasAnyRole(item.roles)
+      (item) =>
+        !item.hidden && (!item.roles || hasAnyRole(item.roles))
     ),
   })).filter((section) => section.items.length > 0);
 }

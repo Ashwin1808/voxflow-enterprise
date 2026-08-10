@@ -13,6 +13,9 @@ const Providers = lazy(() => import("../pages/Providers/Providers"));
 const Analytics = lazy(() => import("../pages/Analytics/Analytics"));
 const Workflow = lazy(() => import("../pages/Workflow/Workflow"));
 const Settings = lazy(() => import("../pages/Settings/Settings"));
+const Simulator = lazy(() => import("../pages/Simulator/Simulator"));
+
+const SIMULATOR_ENABLED = import.meta.env.VITE_SIMULATOR_ENABLED === "true";
 
 function PageLoader() {
   return (
@@ -73,6 +76,16 @@ export default function AppRoutes() {
               </RequireRole>
             }
           />
+          {SIMULATOR_ENABLED && (
+            <Route
+              path="/simulator"
+              element={
+                <RequireRole roles={["ADMIN"]}>
+                  {withSuspense(<Simulator />)}
+                </RequireRole>
+              }
+            />
+          )}
           <Route path="/settings" element={withSuspense(<Settings />)} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
