@@ -57,7 +57,7 @@ class FraudServiceTest {
 
     @Test
     void createsCampaignAddsContactAndStartsCampaign() {
-        var campaign = fraudService.createCampaign(new FraudCampaignRequest("Blocked card checks", "fraud-default"));
+        var campaign = fraudService.createCampaign(new FraudCampaignRequest("Blocked card checks", "fraud-default", null));
 
         assertThat(campaign.status()).isEqualTo(CampaignStatus.DRAFT);
         assertThat(campaign.totalContacts()).isZero();
@@ -80,7 +80,7 @@ class FraudServiceTest {
 
     @Test
     void rejectsStartingCampaignWithoutContacts() {
-        var campaign = fraudService.createCampaign(new FraudCampaignRequest("Empty campaign", "fraud-default"));
+        var campaign = fraudService.createCampaign(new FraudCampaignRequest("Empty campaign", "fraud-default", null));
 
         assertThatThrownBy(() -> fraudService.startCampaign(campaign.id()))
                 .isInstanceOf(IllegalStateException.class)
@@ -89,7 +89,7 @@ class FraudServiceTest {
 
     @Test
     void recordsFraudDecisionAndVisualIvrFallback() {
-        var campaign = fraudService.createCampaign(new FraudCampaignRequest("High risk transactions", "fraud-default"));
+        var campaign = fraudService.createCampaign(new FraudCampaignRequest("High risk transactions", "fraud-default", null));
         var updated = fraudService.addContact(campaign.id(), new FraudContactRequest(
                 "+919900002222",
                 "1111",

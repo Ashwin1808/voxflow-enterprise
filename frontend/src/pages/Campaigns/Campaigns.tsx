@@ -10,16 +10,23 @@ import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import PauseOutlinedIcon from "@mui/icons-material/PauseOutlined";
 import PlayArrowOutlinedIcon from "@mui/icons-material/PlayArrowOutlined";
 import UploadOutlinedIcon from "@mui/icons-material/UploadOutlined";
+import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import VerifiedOutlinedIcon from "@mui/icons-material/VerifiedOutlined";
+import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
+import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
 import PageHeader from "../../components/common/PageHeader";
 import KpiCard from "../../components/common/KpiCard";
 import StatusChip from "../../components/common/StatusChip";
 import CreateCampaignDialog from "../../components/campaign/CreateCampaignDialog";
 import CsvUploadDialog from "../../components/campaign/CsvUploadDialog";
-import { useCampaignCommand, useFraudCampaigns } from "../../hooks/useFraudCampaigns";
+import {
+  useCampaignCommand,
+  useFraudCampaigns,
+  useSampleContacts,
+} from "../../hooks/useFraudCampaigns";
 import useAuth from "../../hooks/useAuth";
 import type { FraudCampaign } from "../../types/fraud";
 
@@ -34,11 +41,14 @@ function workflowLabel(name: string) {
 }
 
 function campaignProgress(campaign: FraudCampaign) {
-  const completed = campaign.contacts.filter(
-    (s) => s.status === "APPROVED" || s.status === "BLOCKED"
-  ).length;
+  const contacts = campaign.contacts;
+  const answered = contacts.filter((s) => s.status === "ANSWERED").length;
+  const approved = contacts.filter((s) => s.status === "APPROVED").length;
+  const blocked = contacts.filter((s) => s.status === "BLOCKED").length;
+  const missed = contacts.filter((s) => s.status === "NO_ANSWER").length;
+  const completed = approved + blocked + missed + contacts.filter((s) => s.status === "VISUAL_IVR_SENT").length;
   const total = campaign.totalContacts;
-  return { completed, total, ratio: total > 0 ? completed / total : 0 };
+  return { answered, approved, blocked, missed, completed, total, ratio: total > 0 ? completed / total : 0 };
 }
 
 type CampaignCardProps = {
@@ -48,9 +58,10 @@ type CampaignCardProps = {
 
 function CampaignCard({ campaign, onUpload }: CampaignCardProps) {
   const command = useCampaignCommand(campaign.id);
+  const sample = useSampleContacts(campaign.id);
   const { hasRole } = useAuth();
   const isAdmin = hasRole("ADMIN");
-  const { completed, total, ratio } = campaignProgress(campaign);
+  const { answered, approved, blocked, missed, completed, total, ratio } = campaignProgress(campaign);
   const running = campaign.status === "RUNNING";
 
   const run = (cmd: "start" | "pause" | "resume") =>
@@ -120,16 +131,38 @@ function CampaignCard({ campaign, onUpload }: CampaignCardProps) {
 
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
         <Box sx={{ fontSize: "0.75rem", color: "text.muted" }}>
-          {total} contact(s) · created{" "}
+          {total} customer(s) · created{" "}
           {new Date(campaign.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+          {campaign.scheduledStartAt && campaign.status !== "RUNNING" && campaign.status !== "COMPLETED" && (
+            <>
+              {" "}· starts{" "}
+              {new Date(campaign.scheduledStartAt).toLocaleString("en-IN", {
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              })}
+            </>
+          )}
         </Box>
         {running && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.6875rem", fontWeight: 600, color: "primary.light" }}>
             <Box sx={{ width: 6, height: 6, borderRadius: 99, bgcolor: "primary.main", animation: "statusPulse 1.6s ease-in-out infinite" }} />
-            Live
+            Live · calls streaming
           </Box>
         )}
       </Box>
+
+      {(running || completed > 0) && (
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
+          <Chip size="small" label={`${completed}/${total} finished`} sx={{ fontSize: "0.6875rem" }} />
+          {answered > 0 && <Chip size="small" icon={<PhoneOutlinedIcon sx={{ fontSize: 13 }} />} label={`${answered} answered`} sx={{ fontSize: "0.6875rem" }} />}
+          {approved > 0 && <Chip size="small" icon={<VerifiedOutlinedIcon sx={{ fontSize: 13 }} />} label={`${approved} approved`} sx={{ fontSize: "0.6875rem", color: "#34D399" }} />}
+          {blocked > 0 && <Chip size="small" icon={<BlockOutlinedIcon sx={{ fontSize: 13 }} />} label={`${blocked} blocked`} sx={{ fontSize: "0.6875rem", color: "#F87171" }} />}
+          {missed > 0 && <Chip size="small" icon={<ScheduleOutlinedIcon sx={{ fontSize: 13 }} />} label={`${missed} no answer`} sx={{ fontSize: "0.6875rem" }} />}
+        </Box>
+      )}
 
       <Box sx={{ display: "flex", gap: 1 }}>
         {isAdmin && (
@@ -152,7 +185,7 @@ function CampaignCard({ campaign, onUpload }: CampaignCardProps) {
                 onClick={() => run("start")}
                 disabled={command.isPending || total === 0}
               >
-                {campaign.status === "PAUSED" ? "Resume" : "Start"}
+                {campaign.status === "PAUSED" ? "Resume" : "Start calls"}
               </Button>
             )}
             <Button
@@ -163,6 +196,15 @@ function CampaignCard({ campaign, onUpload }: CampaignCardProps) {
               color="inherit"
             >
               Upload CSV
+            </Button>
+            <Button
+              size="small"
+              startIcon={<AutoAwesomeOutlinedIcon fontSize="small" />}
+              onClick={() => sample.mutate(100)}
+              disabled={running || sample.isPending}
+              color="inherit"
+            >
+              {sample.isPending ? "Loading…" : "Load 100 samples"}
             </Button>
           </>
         )}

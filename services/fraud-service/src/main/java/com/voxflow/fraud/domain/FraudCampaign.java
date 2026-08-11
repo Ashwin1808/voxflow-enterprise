@@ -27,6 +27,9 @@ public class FraudCampaign {
     @Column(name = "total_contacts", nullable = false)
     private int totalContacts;
 
+    @Column(name = "scheduled_start_at")
+    private OffsetDateTime scheduledStartAt;
+
     @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<FraudSession> contacts = new ArrayList<>();
 
@@ -41,12 +44,13 @@ public class FraudCampaign {
 
     public FraudCampaign() {}
 
-    public FraudCampaign(UUID id, String name, String workflowName, CampaignStatus status, int totalContacts, List<FraudSession> contacts, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
+    public FraudCampaign(UUID id, String name, String workflowName, CampaignStatus status, int totalContacts, OffsetDateTime scheduledStartAt, List<FraudSession> contacts, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
         this.id = id;
         this.name = name;
         this.workflowName = workflowName;
         this.status = status;
         this.totalContacts = totalContacts;
+        this.scheduledStartAt = scheduledStartAt;
         this.contacts = contacts != null ? new ArrayList<>(contacts) : new ArrayList<>();
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -90,6 +94,14 @@ public class FraudCampaign {
 
     public void setTotalContacts(int totalContacts) {
         this.totalContacts = totalContacts;
+    }
+
+    public OffsetDateTime getScheduledStartAt() {
+        return scheduledStartAt;
+    }
+
+    public void setScheduledStartAt(OffsetDateTime scheduledStartAt) {
+        this.scheduledStartAt = scheduledStartAt;
     }
 
     public List<FraudSession> getContacts() {

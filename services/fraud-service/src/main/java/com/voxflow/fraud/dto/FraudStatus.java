@@ -8,5 +8,6 @@ public enum FraudStatus {
     ANSWERED,
     APPROVED,
     BLOCKED,
-    VISUAL_IVR_SENT
+    VISUAL_IVR_SENT,
+    NO_ANSWER
 }

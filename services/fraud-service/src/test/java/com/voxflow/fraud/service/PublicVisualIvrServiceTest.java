@@ -68,7 +68,7 @@ class PublicVisualIvrServiceTest {
 
         FraudCampaign campaign = new FraudCampaign(
                 UUID.randomUUID(), "Visual IVR test", "fraud_verification:2.0",
-                CampaignStatus.READY, 1, java.util.List.of(),
+                CampaignStatus.READY, 1, null, java.util.List.of(),
                 java.time.OffsetDateTime.now(), java.time.OffsetDateTime.now());
         session = new FraudSession(
                 UUID.randomUUID(), campaign, "+919900009999", "9999",

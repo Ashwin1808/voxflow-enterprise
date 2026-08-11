@@ -30,6 +30,7 @@ export default function CreateCampaignDialog({ open, onClose }: CreateCampaignDi
     name: "",
     workflowName: "fraud_verification:1.0",
   });
+  const [scheduleAt, setScheduleAt] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
@@ -39,8 +40,14 @@ export default function CreateCampaignDialog({ open, onClose }: CreateCampaignDi
     }
     setError(null);
     try {
-      await createCampaign.mutateAsync({ name: form.name.trim(), workflowName: form.workflowName });
+      const input: FraudCampaignInput = {
+        name: form.name.trim(),
+        workflowName: form.workflowName,
+        scheduledStartAt: scheduleAt ? new Date(scheduleAt).toISOString() : null,
+      };
+      await createCampaign.mutateAsync(input);
       setForm({ name: "", workflowName: "fraud_verification:1.0" });
+      setScheduleAt("");
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create campaign");
@@ -95,6 +102,15 @@ export default function CreateCampaignDialog({ open, onClose }: CreateCampaignDi
               </MenuItem>
             ))}
           </TextField>
+          <TextField
+            label="Schedule start (optional)"
+            type="datetime-local"
+            fullWidth
+            value={scheduleAt}
+            onChange={(e) => setScheduleAt(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+            helperText="Leave empty to start manually when you're ready"
+          />
           <Box
             sx={{
               px: 1.5,
@@ -107,8 +123,9 @@ export default function CreateCampaignDialog({ open, onClose }: CreateCampaignDi
               lineHeight: 1.6,
             }}
           >
-            <b style={{ color: "primary" }}>Next:</b> after creating, upload a CSV of customers to
-            schedule fraud verification calls. Campaigns start in <b>DRAFT</b> status.
+            <b style={{ color: "primary" }}>Next:</b> after creating, upload a CSV of customers (or
+            load sample data) to schedule fraud verification calls. Campaigns start in{" "}
+            <b>DRAFT</b> status.
           </Box>
           {error && (
             <Box sx={{ fontSize: "0.8125rem", color: "error.main" }}>{error}</Box>

@@ -8,7 +8,8 @@ export type FraudStatus =
   | "ANSWERED"
   | "APPROVED"
   | "BLOCKED"
-  | "VISUAL_IVR_SENT";
+  | "VISUAL_IVR_SENT"
+  | "NO_ANSWER";
 
 export type FraudDecision = "APPROVE" | "BLOCK" | "SEND_VISUAL_IVR";
 
@@ -39,6 +40,7 @@ export interface FraudCampaign {
   status: CampaignStatus;
   totalContacts: number;
   contacts: FraudSession[];
+  scheduledStartAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,6 +48,7 @@ export interface FraudCampaign {
 export interface FraudCampaignInput {
   name: string;
   workflowName: string;
+  scheduledStartAt?: string | null;
 }
 
 export interface FraudContactInput {

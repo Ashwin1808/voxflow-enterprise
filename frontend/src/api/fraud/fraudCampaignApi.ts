@@ -39,6 +39,16 @@ export async function uploadFraudContacts(
   return data;
 }
 
+export async function addSampleContacts(
+  campaignId: string,
+  count: number
+): Promise<FraudCampaign> {
+  const { data } = await apiClient.post<FraudCampaign>(
+    `${BASE}/campaigns/${campaignId}/sample?count=${count}`
+  );
+  return data;
+}
+
 export async function sendCampaignCommand(
   campaignId: string,
   command: CampaignCommand

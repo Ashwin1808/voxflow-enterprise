@@ -55,6 +55,13 @@ public class FraudController {
         return ApiResponse.ok("Fraud campaign started", fraudService.startCampaign(id));
     }
 
+    @PostMapping("/campaigns/{id}/sample")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<FraudCampaignResponse> addSampleContacts(@PathVariable("id") UUID id,
+                                                                @org.springframework.web.bind.annotation.RequestParam(defaultValue = "100") int count) {
+        return ApiResponse.ok("Sample contacts loaded", fraudService.addSampleContacts(id, count));
+    }
+
     @PostMapping("/campaigns/{id}/pause")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<FraudCampaignResponse> pauseCampaign(@PathVariable("id") UUID id) {

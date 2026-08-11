@@ -64,6 +64,9 @@ echo "✓ provider-service booted on port 8085 (logging to provider.log)"
 mvn -pl services/analytics-service spring-boot:run > analytics.log 2>&1 &
 echo "✓ analytics-service booted on port 8086 (logging to analytics.log)"
 
+mvn -pl services/outbound-service spring-boot:run > outbound.log 2>&1 &
+echo "✓ outbound-service booted on port 8087 (logging to outbound.log)"
+
 echo "=================================================="
 echo " Backend startup initiated successfully."
 echo " Use 'tail -f *.log' to view logs."

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  addSampleContacts,
   createFraudCampaign,
   createFraudSession,
   getCampaignMetrics,
@@ -54,6 +55,17 @@ export function useUploadFraudContacts(campaignId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (contacts: FraudContactInput[]) => uploadFraudContacts(campaignId, contacts),
+    onSuccess: (campaign) => {
+      queryClient.invalidateQueries({ queryKey: fraudKeys.list() });
+      queryClient.setQueryData(fraudKeys.detail(campaign.id), campaign);
+    },
+  });
+}
+
+export function useSampleContacts(campaignId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (count: number) => addSampleContacts(campaignId, count),
     onSuccess: (campaign) => {
       queryClient.invalidateQueries({ queryKey: fraudKeys.list() });
       queryClient.setQueryData(fraudKeys.detail(campaign.id), campaign);

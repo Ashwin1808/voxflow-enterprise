@@ -18,7 +18,7 @@ type StateMachineProps = {
 
 export default function StateMachine({ session, busy, onTransition, onDecision, onOpenLink, onCopyLink }: StateMachineProps) {
   const currentIndex = JOURNEY.indexOf(session.status);
-  const terminal = session.status === "APPROVED" || session.status === "BLOCKED";
+  const terminal = session.status === "APPROVED" || session.status === "BLOCKED" || session.status === "NO_ANSWER";
   const visualSent = session.status === "VISUAL_IVR_SENT";
 
   const canTransition = (step: FraudStatus) =>

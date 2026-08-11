@@ -20,6 +20,7 @@ const FRAUD_TONES: Record<FraudStatus, StatusTone> = {
   APPROVED: "success",
   BLOCKED: "error",
   VISUAL_IVR_SENT: "info",
+  NO_ANSWER: "muted",
 };
 
 const TONE_COLORS: Record<StatusTone, { bg: string; fg: string; dot?: string }> = {

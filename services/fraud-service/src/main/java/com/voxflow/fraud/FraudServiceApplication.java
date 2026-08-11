@@ -5,10 +5,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = "com.voxflow")
 @EnableJpaRepositories(basePackages = "com.voxflow")
 @EntityScan(basePackages = "com.voxflow")
+@EnableScheduling
 public class FraudServiceApplication {
 
     public static void main(String[] args) {

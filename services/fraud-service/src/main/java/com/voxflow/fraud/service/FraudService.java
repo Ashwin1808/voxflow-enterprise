@@ -55,6 +55,7 @@ public class FraudService {
                 request.workflowName(),
                 CampaignStatus.DRAFT,
                 0,
+                request.scheduledStartAt(),
                 java.util.List.of(),
                 now,
                 now);
@@ -118,18 +119,23 @@ public class FraudService {
                 OffsetDateTime.now()));
 
         if (campaign.getWorkflowName() != null && !campaign.getWorkflowName().isEmpty()) {
+            OffsetDateTime now = OffsetDateTime.now();
             for (FraudSession session : campaign.getContacts()) {
                 if (session.getStatus() == FraudStatus.PENDING) {
-                    Map<String, Object> variables = new HashMap<>();
-                    variables.put("sessionId", session.getId().toString());
-                    variables.put("customerPhone", session.getCustomerPhone());
-                    variables.put("cardLastFour", session.getCardLastFour());
-                    variables.put("merchant", session.getMerchant());
-                    variables.put("amount", session.getAmount());
+                    session.setStatus(FraudStatus.QUEUED);
+                    eventPublisher.publish("call.status", new CallEvent(
+                            session.getId(), session.getCustomerPhone(), campaign.getWorkflowName(),
+                            "QUEUED", null, now));
                     try {
+                        Map<String, Object> variables = new HashMap<>();
+                        variables.put("sessionId", session.getId().toString());
+                        variables.put("customerPhone", session.getCustomerPhone());
+                        variables.put("cardLastFour", session.getCardLastFour());
+                        variables.put("merchant", session.getMerchant());
+                        variables.put("amount", session.getAmount());
                         workflowExecutor.startWorkflow(campaign.getWorkflowName(), variables);
-                        session.setStatus(FraudStatus.QUEUED);
                     } catch (Exception e) {
+                        // engine tracking is best-effort; dialing is driven by the QUEUED event
                     }
                 }
             }
@@ -274,6 +280,33 @@ public class FraudService {
         return toCampaignResponse(campaign);
     }
 
+    private static final String[] SAMPLE_MERCHANTS = {
+            "Amazon", "Flipkart", "Netflix", "Uber", "BigBasket", "Swiggy",
+            "MakeMyTrip", "Apple", "Zoomcar", "Myntra"};
+
+    public FraudCampaignResponse addSampleContacts(UUID campaignId, int count) {
+        int safeCount = Math.max(1, Math.min(count, 1000));
+        java.util.List<FraudContactRequest> contacts = new java.util.ArrayList<>();
+        java.util.Random random = new java.util.Random();
+        for (int i = 0; i < safeCount; i++) {
+            String phone = "9198" + String.format("%08d", random.nextInt(100000000));
+            String card = String.format("%04d", random.nextInt(10000));
+            String merchant = SAMPLE_MERCHANTS[random.nextInt(SAMPLE_MERCHANTS.length)];
+            int amount = (1000 + random.nextInt(99000)) / 100 * 100;
+            contacts.add(new FraudContactRequest(phone, card, merchant, java.math.BigDecimal.valueOf(amount)));
+        }
+        return addContactsBulk(campaignId, contacts);
+    }
+
+    public FraudCampaignResponse completeCampaign(UUID campaignId) {
+        FraudCampaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud campaign not found: " + campaignId));
+        campaign.setStatus(CampaignStatus.COMPLETED);
+        campaign.setUpdatedAt(OffsetDateTime.now());
+        campaignRepository.save(campaign);
+        return toCampaignResponse(campaign);
+    }
+
     public FraudSessionResponse transitionSession(UUID id, com.voxflow.fraud.dto.FraudTransitionRequest request) {
         FraudSession current = sessionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Fraud session not found: " + id));
@@ -291,6 +324,20 @@ public class FraudService {
         return sessionRepository.findById(id)
                 .map(this::toSessionResponse)
                 .orElseThrow(() -> new IllegalArgumentException("Fraud session not found: " + id));
+    }
+
+    public void applyCallStatus(UUID sessionId, String status) {
+        sessionRepository.findById(sessionId).ifPresent(current -> {
+            if (current.getStatus() == FraudStatus.APPROVED
+                    || current.getStatus() == FraudStatus.BLOCKED
+                    || current.getStatus() == FraudStatus.VISUAL_IVR_SENT) {
+                return;
+            }
+            FraudStatus next = FraudStatus.valueOf(status);
+            current.setStatus(next);
+            current.setUpdatedAt(OffsetDateTime.now());
+            sessionRepository.save(current);
+        });
     }
 
     @Transactional(readOnly = true)
@@ -372,6 +419,7 @@ public class FraudService {
                 campaign.getStatus(),
                 campaign.getTotalContacts(),
                 campaign.getContacts().stream().map(this::toSessionResponse).toList(),
+                campaign.getScheduledStartAt(),
                 campaign.getCreatedAt(),
                 campaign.getUpdatedAt());
     }

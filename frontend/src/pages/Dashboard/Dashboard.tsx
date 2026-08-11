@@ -26,6 +26,7 @@ const DONUT_COLORS: Record<FraudStatus, string> = {
   APPROVED: "#34D399",
   BLOCKED: "#F87171",
   VISUAL_IVR_SENT: "#8F74FF",
+  NO_ANSWER: "#6B7280",
 };
 
 export default function Dashboard() {

@@ -11,6 +11,7 @@ public record FraudCampaignResponse(
         CampaignStatus status,
         int totalContacts,
         List<FraudSessionResponse> contacts,
+        OffsetDateTime scheduledStartAt,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {

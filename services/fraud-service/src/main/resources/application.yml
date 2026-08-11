@@ -30,7 +30,7 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
     listener:
       simple:
-        auto-startup: false
+        auto-startup: ${RABBIT_LISTENER_AUTO_STARTUP:true}
 management:
   endpoints:
     web:
