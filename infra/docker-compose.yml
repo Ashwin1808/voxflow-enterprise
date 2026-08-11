@@ -1,0 +1,164 @@
+version: "3.9"
+
+x-java-service: &java-service
+  build:
+    context: ..
+    dockerfile: infra/Dockerfile.service
+    args:
+      SERVICE: ${SERVICE}
+  restart: unless-stopped
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+  environment: &java-env
+    SPRING_RABBITMQ_HOST: rabbitmq
+    SPRING_RABBITMQ_USERNAME: voxflow
+    SPRING_RABBITMQ_PASSWORD: voxflow
+    KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/voxflow-realm
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: voxflow
+      RABBITMQ_DEFAULT_PASS: voxflow
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.0
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    volumes:
+      - ./keycloak/voxflow-realm.json:/opt/keycloak/data/import/realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  auth-service:
+    <<: *java-service
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8081"
+    ports: ["8081:8081"]
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.service
+      args: { SERVICE: auth-service }
+
+  fraud-service:
+    <<: *java-service
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8082"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/voxflow_fraud
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    ports: ["8082:8082"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.service
+      args: { SERVICE: fraud-service }
+
+  insurance-service:
+    <<: *java-service
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8083"
+    ports: ["8083:8083"]
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.service
+      args: { SERVICE: insurance-service }
+
+  inbound-service:
+    <<: *java-service
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8084"
+    ports: ["8084:8084"]
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.service
+      args: { SERVICE: inbound-service }
+
+  provider-service:
+    <<: *java-service
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8085"
+    ports: ["8085:8085"]
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.service
+      args: { SERVICE: provider-service }
+
+  analytics-service:
+    <<: *java-service
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8086"
+    ports: ["8086:8086"]
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.service
+      args: { SERVICE: analytics-service }
+
+  outbound-service:
+    <<: *java-service
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8087"
+      CALL_PROVIDER: ${CALL_PROVIDER:-emulator}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+    ports: ["8087:8087"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.service
+      args: { SERVICE: outbound-service }
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.frontend
+    restart: unless-stopped
+    ports: ["4173:80"]
+    depends_on:
+      - fraud-service
+      - outbound-service
+
+volumes:
+  pgdata:
