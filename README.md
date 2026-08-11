@@ -1,55 +1,119 @@
-# VoxFlow Platform
+# VoxFlow — Fraud-Call Platform (Event-Driven Microservices)
 
-VoxFlow is an enterprise omnichannel communication platform. The current implementation is intentionally narrowed to Authentication plus three business services: Fraud, Insurance, and Inbound IVR. Docker, Kubernetes, Terraform, GitHub Actions, AWS, and other DevOps implementation work are intentionally left for the user to build later.
+Enterprise-grade, interview-ready fraud-verification call platform. Upload 100+ customers, schedule a campaign, and VoxFlow auto-dials every customer through a progressive dialer, walks them through IVR (keypad + Visual IVR), records decisions (approved / blocked / disputed / no-answer) in real time, and reflects everything live on the dashboard.
 
-## Run UI Prototype
+**Zero cost to run** — the dialer ships with a free local emulator. A Twilio adapter is included and enabled with one env var flip.
 
-```bash
-npm start
+```
+                 ┌──────────────────────────────────────────────────────┐
+                 │                     Frontend (React)                  │
+                 │          Campaigns · Live sessions · Providers        │
+                 └──────────────┬───────────────────────────┬────────────┘
+                                │ REST (JWT / Keycloak)     │ REST (JWT)
+                    ┌───────────▼───────────┐       ┌───────▼────────────┐
+                    │    fraud-service      │       │  outbound-service  │
+                    │  campaigns · sessions │       │     dialer (8087)  │
+                    │  decisions · Visual   │       │ emulator|twilio    │
+                    │  IVR · auto-starter   │       │ TwiML · webhooks   │
+                    └───────────┬───────────┘       └───────┬────────────┘
+                                │      RabbitMQ  voxflow.topic (event bus)
+                                ▼                            ▼
+                    call.status ─────────────► outbound.call.queue (auto-dial)
+                    call.status ─────────────► fraud.call.queue    (state sync)
+                    call.decision ───────────► fraud.decision.queue (decisions)
+                                │
+                    ┌───────────▼───────────────────────────────────────┐
+                    │            PostgreSQL (sessions, decisions)       │
+                    └───────────────────────────────────────────────────┘
 ```
 
-Then open `http://localhost:4173`.
+## Services
 
-## Backend Status
-
-| Service | Port | Status |
+| Service | Port | Responsibility |
 | --- | --- | --- |
-| auth-service | 8081 | Complete — Keycloak resource server, RBAC |
-| fraud-service | 8082 | In progress — campaign management, fraud verification, workflow entry points, Visual IVR fallback |
-| insurance-service | 8083 | In progress — campaign management, policy renewal, payment simulator links, claims Visual IVR |
-| inbound-service | 8084 | In progress — inbound call sessions, DTMF menu routing, agent transfer |
+| auth-service | 8081 | Keycloak resource server, RBAC (ADMIN / AGENT) |
+| fraud-service | 8082 | Campaigns, contacts, sessions, decisions, auto-start/complete, Visual IVR page |
+| insurance-service | 8083 | Insurance campaign workflows |
+| inbound-service | 8084 | Inbound IVR, DTMF routing |
+| provider-service | 8085 | Provider adapters (Exotel, Twilio, Razorpay, Simulator) |
+| analytics-service | 8086 | Event analytics |
+| outbound-service | 8087 | Progressive dialer — **EmulatorCallProvider** (free, default) or **TwilioCallProvider** |
+| frontend | 4173 | React + Vite + MUI dashboard |
 
-`services/outbound-service` is preserved in the workspace for history, but it is not part of the active Maven reactor and should not be used for the current architecture.
+## Quickstart (local, free)
 
-### Run Backend Services
+Requirements: JDK 21 (`export JAVA_HOME=$(/usr/libexec/java_home -v 21)`), Maven, Docker (Keycloak, RabbitMQ, PostgreSQL), Node 20.
 
 ```bash
-mvn -pl services/fraud-service -am spring-boot:run
-mvn -pl services/insurance-service -am spring-boot:run
-mvn -pl services/inbound-service -am spring-boot:run
+# 1. Infra (RabbitMQ, Keycloak, PostgreSQL)
+#    (run the containers as listed in docs/architecture.md or your local setup)
+
+# 2. Backend — boots auth(8081) fraud(8082) insurance(8083) inbound(8084)
+#    provider(8085) analytics(8086) outbound(8087)
+./start-backend.sh
+
+# 3. Frontend
+cd frontend && npm install && npm run dev   # or: npm run build && node server.js
 ```
 
-See [docs/authentication.md](docs/authentication.md).
+Open http://localhost:4173 → log in `admin / admin`.
 
-Local Java and Maven are not installed yet on this machine, so backend compilation/tests need JDK 21 and Maven installed locally.
+### Run the full demo (10 minutes, free)
 
-## What Is Built
+1. **Dashboard** → **Campaigns** → **New campaign** → set a start time ~2 minutes ahead.
+2. **Upload CSV** (`data/contacts.csv` — 100 customers) or **Load 100 samples**.
+3. Wait — the campaign auto-starts at the scheduled time.
+4. Watch the dialer: 7 concurrent lines, contacts stream through
+   PENDING → DIALING → RINGING → ANSWERED / NO_ANSWER.
+5. A customer answers → session flips to **Call Flow** → agent approves/blocks,
+   or the customer self-serves via **Visual IVR** (open the public link on your phone).
+6. When all sessions reach a terminal state the campaign **auto-completes**.
+7. Watch live metrics in Grafana (dialer calls placed, answer rate, lines in use).
 
-- Command dashboard for live and scheduled campaigns.
-- Campaign manager with status, progress, retry rate, provider, and owner context.
-- Workflow Engine view based on the JSON interpreter concept from the spec.
-- Visual IVR mobile preview for secure fallback links.
-- Provider abstraction status cards for Exotel, Twilio, Razorpay, and Simulator adapters.
-- Event stream modeled after `voxflow.topic` RabbitMQ routing keys.
-- Keycloak-backed authentication service.
-- Fraud service for campaign uploads, fraud verification, card decision flows, and Visual IVR fallback.
-- Insurance service for campaign uploads, policy renewal, payment simulator links, and claims Visual IVR fallback.
-- Inbound service for IVR menu, DTMF, and agent transfer.
-- Infrastructure placeholders for Spring Cloud Gateway, RabbitMQ, PostgreSQL, Redis, and Keycloak.
+### Switch to real phone calls (Twilio, optional)
 
-## Next Engineering Steps
+1. Create a Twilio trial account (free credit, no card).
+2. In `.env` (gitignored): `CALL_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID=…`,
+   `TWILIO_AUTH_TOKEN=…`, `TWILIO_FROM_NUMBER=…` (your trial number).
+3. Your own mobile must be verified in Twilio (trial accounts call verified numbers only).
+4. Restart outbound-service. Every dial is now a real PSTN call with full TwiML IVR
+   (press 1 to approve, 2 to block) and status webhooks/polling.
 
-- Finish tests for Fraud, Insurance, and Inbound services.
-- Wire the completed UI to these APIs through the future Spring Cloud Gateway.
-- Keep all providers simulator-first.
-- Leave Docker, Kubernetes, Terraform, CI/CD, monitoring, AWS, and other DevOps work for the user.
+## Architecture & Platform Engineering
+
+- **Event-driven core** — single RabbitMQ `voxflow.topic` exchange; services share
+  nothing but events (`call.status`, `call.decision`); consumers are idempotent.
+- **Progressive dialer** — bounded concurrency (7 lines), QUEUED re-dispatch on
+  busy lines, provider abstraction (`CallProvider`) with emulator + Twilio adapters.
+- **Real-time state machine** — sessions transition on every event; terminal states
+  lock decisions; campaigns auto-complete.
+- **Security** — OAuth2/OIDC via Keycloak, method-level RBAC, public scope limited
+  to IVR webhooks, secrets via env (never committed).
+- **CI/CD** — GitHub Actions: matrix build+test (JDK 21), Trivy (dependency + image),
+  CodeQL, npm lint/build; CD publishes to GHCR on tags.
+- **Containerization** — one generic multi-stage Dockerfile for all Java services;
+  `docker compose up` runs the whole stack + observability.
+- **Observability** — Prometheus scrapes all services (JVM + custom dialer metrics),
+  Loki + Promtail for centralized logs, Grafana with a provisioned VoxFlow dashboard.
+- **Cloud-scale story** (design, not yet provisioned) — see `docs/architecture.md`:
+  AWS EKS, ALB, Aurora PostgreSQL, Amazon MQ / MSK, S3, CloudWatch, Route 53,
+  Terraform + ArgoCD GitOps.
+
+## Repo Layout
+
+```
+services/         7 Spring Boot microservices
+  outbound-service   dialer: telephony/{Emulator,Twilio}CallProvider, TwiMlService
+workflow-engine/  shared event DTOs (call.status / call.decision)
+frontend/         React dashboard (Campaigns, Call Sessions, Providers, Simulator)
+infra/            Dockerfiles, docker-compose, Keycloak realm, Prometheus/Grafana/Loki
+.github/workflows CI (build+test+Trivy+CodeQL), CD (GHCR), CodeQL schedule
+data/             sample contacts CSV (100 customers)
+docs/             architecture.md, demo-script.md, authentication.md
+```
+
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) — AWS-scale target architecture
+- [docs/demo-script.md](docs/demo-script.md) — the 10-minute interview demo script
+- [docs/authentication.md](docs/authentication.md) — Keycloak setup details
