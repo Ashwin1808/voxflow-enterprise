@@ -38,3 +38,9 @@ voxflow:
       auth-token: ${TWILIO_AUTH_TOKEN:}
       from-number: ${TWILIO_FROM_NUMBER:}
       poll-interval-seconds: ${TWILIO_POLL_INTERVAL_SECONDS:5}
+    exotel:
+      account-sid: ${EXOTEL_ACCOUNT_SID:}
+      api-key: ${EXOTEL_API_KEY:}
+      api-token: ${EXOTEL_API_TOKEN:}
+      from-number: ${EXOTEL_FROM_NUMBER:}
+      poll-interval-seconds: ${EXOTEL_POLL_INTERVAL_SECONDS:5}

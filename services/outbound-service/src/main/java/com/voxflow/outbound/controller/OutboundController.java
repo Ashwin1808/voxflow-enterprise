@@ -87,4 +87,24 @@ public class OutboundController {
                 """;
         return ResponseEntity.ok(thanks);
     }
+
+    // ---- Exotel endpoints (same contract, different param names) ----
+
+    @GetMapping(value = "/provider/exotel/voice", produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<String> exotelVoice(@RequestParam("sessionId") UUID sessionId) {
+        return ResponseEntity.ok(twiMlService.voiceTwiMl(sessionId));
+    }
+
+    @PostMapping(value = "/provider/exotel/callbacks/status")
+    public ResponseEntity<String> exotelStatusCallback(@RequestParam("CallSid") String callSid,
+                                                       @RequestParam("Status") String callStatus) {
+        dialService.onProviderStatus(callSid, callStatus);
+        return ResponseEntity.ok("ok");
+    }
+
+    @PostMapping(value = "/provider/exotel/callbacks/gather", produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<String> exotelGatherCallback(@RequestParam("sessionId") UUID sessionId,
+                                                       @RequestParam(value = "Digits", required = false) String digits) {
+        return gatherCallback(sessionId, digits);
+    }
 }
