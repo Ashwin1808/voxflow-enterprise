@@ -32,6 +32,13 @@ fi
 export SPRING_RABBITMQ_USERNAME=voxflow
 export SPRING_RABBITMQ_PASSWORD=voxflow
 
+# Load runtime configuration (.env is gitignored)
+if [ -f .env ]; then
+    set -a
+    . ./.env
+    set +a
+fi
+
 echo "=================================================="
 echo " Stopping any existing service instances..."
 echo "=================================================="
@@ -65,7 +72,7 @@ mvn -pl services/analytics-service spring-boot:run > analytics.log 2>&1 &
 echo "✓ analytics-service booted on port 8086 (logging to analytics.log)"
 
 mvn -pl services/outbound-service spring-boot:run > outbound.log 2>&1 &
-echo "✓ outbound-service booted on port 8087 (logging to outbound.log)"
+echo "✓ outbound-service booted on port 8087 (logging to outbound.log, CALL_PROVIDER=${CALL_PROVIDER:-emulator})"
 
 echo "=================================================="
 echo " Backend startup initiated successfully."

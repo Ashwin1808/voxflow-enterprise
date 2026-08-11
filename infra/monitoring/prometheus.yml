@@ -1,0 +1,33 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: auth-service
+    static_configs:
+      - targets: ["auth-service:8081"]
+        labels: { service: auth }
+  - job_name: fraud-service
+    static_configs:
+      - targets: ["fraud-service:8082"]
+        labels: { service: fraud }
+  - job_name: insurance-service
+    static_configs:
+      - targets: ["insurance-service:8083"]
+        labels: { service: insurance }
+  - job_name: inbound-service
+    static_configs:
+      - targets: ["inbound-service:8084"]
+        labels: { service: inbound }
+  - job_name: provider-service
+    static_configs:
+      - targets: ["provider-service:8085"]
+        labels: { service: provider }
+  - job_name: analytics-service
+    static_configs:
+      - targets: ["analytics-service:8086"]
+        labels: { service: analytics }
+  - job_name: outbound-service
+    static_configs:
+      - targets: ["outbound-service:8087"]
+        labels: { service: outbound }

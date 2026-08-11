@@ -27,6 +27,10 @@ public class EmulatorCallProvider implements CallProvider {
     private final ScheduledExecutorService scheduler =
             java.util.concurrent.Executors.newScheduledThreadPool(3);
     private final CallEventPublisher publisher;
+    private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
+    private final io.micrometer.core.instrument.Counter callsPlaced;
+    private final io.micrometer.core.instrument.Counter callsAnswered;
+    private final io.micrometer.core.instrument.Gauge linesInUse;
 
     private final double answerRate;
     private final int minRingSeconds;
@@ -34,13 +38,21 @@ public class EmulatorCallProvider implements CallProvider {
 
     public EmulatorCallProvider(
             CallEventPublisher publisher,
+            io.micrometer.core.instrument.MeterRegistry meterRegistry,
             @Value("${voxflow.call.emulator.answer-rate:0.75}") double answerRate,
             @Value("${voxflow.call.emulator.min-ring-seconds:2}") int minRingSeconds,
             @Value("${voxflow.call.emulator.max-ring-seconds:8}") int maxRingSeconds) {
         this.publisher = publisher;
+        this.meterRegistry = meterRegistry;
         this.answerRate = answerRate;
         this.minRingSeconds = minRingSeconds;
         this.maxRingSeconds = maxRingSeconds;
+        this.callsPlaced = meterRegistry.counter("outbound.calls.total", "provider", "EMULATOR");
+        this.callsAnswered = meterRegistry.counter("outbound.calls.answered", "provider", "EMULATOR");
+        this.linesInUse = io.micrometer.core.instrument.Gauge.builder(
+                        "outbound.lines.in_use", lines, Semaphore::availablePermits)
+                .description("Dialer lines currently free")
+                .register(meterRegistry);
     }
 
     @Override
@@ -76,6 +88,10 @@ public class EmulatorCallProvider implements CallProvider {
             publisher.publish("call.status", new CallEvent(
                     sessionId, phone, workflowName, outcome, null, OffsetDateTime.now()));
             lines.release();
+            callsPlaced.increment();
+            if (answered) {
+                callsAnswered.increment();
+            }
             log.info("[emulator] session {} -> {}", sessionId, outcome);
         }, ringSeconds + outcomeSeconds, TimeUnit.SECONDS);
 

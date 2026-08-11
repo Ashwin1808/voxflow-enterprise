@@ -1,0 +1,62 @@
+{
+  "uid": "voxflow-overview",
+  "title": "VoxFlow — Dialer & Platform Overview",
+  "tags": ["voxflow"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-15m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "gridPos": { "h": 5, "w": 4, "x": 0, "y": 0 },
+      "title": "Calls placed",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(increase(outbound_calls_total_total[5m]))" }],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 2, "type": "stat", "gridPos": { "h": 5, "w": 4, "x": 4, "y": 0 },
+      "title": "Answer rate (5m)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "100 * sum(increase(outbound_calls_answered_total[5m])) / clamp_min(sum(increase(outbound_calls_total_total[5m])), 1)" }],
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100 }, "overrides": [] }
+    },
+    {
+      "id": 3, "type": "stat", "gridPos": { "h": 5, "w": 4, "x": 8, "y": 0 },
+      "title": "Dialer lines busy",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "7 - outbound_lines_in_use" }],
+      "fieldConfig": { "defaults": { "unit": "short", "max": 7 }, "overrides": [] }
+    },
+    {
+      "id": 4, "type": "stat", "gridPos": { "h": 5, "w": 4, "x": 12, "y": 0 },
+      "title": "Services up",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "count(up == 1)" }],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 5, "type": "stat", "gridPos": { "h": 5, "w": 4, "x": 16, "y": 0 },
+      "title": "Active calls in flight",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "7 - outbound_lines_in_use" }],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 6, "type": "timeseries", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "title": "Calls per minute (rate)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(rate(outbound_calls_total_total[1m]))" }],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 7, "type": "timeseries", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "title": "JVM heap used (MB)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "jvm_memory_used_bytes{area=\"heap\"} / 1024 / 1024" }],
+      "fieldConfig": { "defaults": { "unit": "decmbytes" }, "overrides": [] }
+    }
+  ]
+}
