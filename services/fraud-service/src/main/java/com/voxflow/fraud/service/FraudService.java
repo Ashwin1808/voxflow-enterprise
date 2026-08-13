@@ -2,6 +2,7 @@ package com.voxflow.fraud.service;
 
 import com.voxflow.fraud.domain.FraudCampaign;
 import com.voxflow.fraud.domain.FraudSession;
+import com.voxflow.fraud.domain.VisualIvrActivity;
 import com.voxflow.fraud.domain.VisualIvrToken;
 import com.voxflow.fraud.dto.CampaignMetrics;
 import com.voxflow.fraud.dto.CampaignStatus;
@@ -14,15 +15,20 @@ import com.voxflow.fraud.dto.FraudSessionRequest;
 import com.voxflow.fraud.dto.FraudSessionResponse;
 import com.voxflow.fraud.dto.FraudStatus;
 import com.voxflow.fraud.dto.VisualIvrDecisionResponse;
+import com.voxflow.fraud.dto.VisualIvrOtpResponse;
+import com.voxflow.fraud.dto.VisualIvrActivityResponse;
 import com.voxflow.fraud.dto.VisualIvrPublicDecision;
 import com.voxflow.fraud.dto.VisualIvrSummary;
 import com.voxflow.fraud.repository.FraudCampaignRepository;
 import com.voxflow.fraud.repository.FraudSessionRepository;
+import com.voxflow.fraud.repository.VisualIvrActivityRepository;
+import com.voxflow.fraud.util.PdfReceiptGenerator;
 import com.voxflow.workflow.event.EventPublisher;
 import com.voxflow.workflow.event.dto.*;
 import com.voxflow.workflow.service.WorkflowExecutor;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -38,13 +44,18 @@ public class FraudService {
     private final WorkflowExecutor workflowExecutor;
     private final EventPublisher eventPublisher;
     private final VisualIvrTokenService visualIvrTokenService;
+    private final VisualIvrActivityRepository activityRepository;
+    private final String visualIvrBaseUrl;
 
-    public FraudService(FraudCampaignRepository campaignRepository, FraudSessionRepository sessionRepository, WorkflowExecutor workflowExecutor, EventPublisher eventPublisher, VisualIvrTokenService visualIvrTokenService) {
+    public FraudService(FraudCampaignRepository campaignRepository, FraudSessionRepository sessionRepository, WorkflowExecutor workflowExecutor, EventPublisher eventPublisher, VisualIvrTokenService visualIvrTokenService, VisualIvrActivityRepository activityRepository,
+                        @org.springframework.beans.factory.annotation.Value("${voxflow.visual-ivr.base-url:/v/}") String visualIvrBaseUrl) {
         this.campaignRepository = campaignRepository;
         this.sessionRepository = sessionRepository;
         this.workflowExecutor = workflowExecutor;
         this.eventPublisher = eventPublisher;
         this.visualIvrTokenService = visualIvrTokenService;
+        this.activityRepository = activityRepository;
+        this.visualIvrBaseUrl = visualIvrBaseUrl;
     }
 
     public FraudCampaignResponse createCampaign(FraudCampaignRequest request) {
@@ -218,6 +229,19 @@ public class FraudService {
     }
 
     public FraudSessionResponse decide(UUID id, FraudDecisionRequest request) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                return decideOnce(id, request);
+            } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+                if (attempt == 2) {
+                    throw e;
+                }
+            }
+        }
+        throw new IllegalStateException("Decision could not be recorded");
+    }
+
+    private FraudSessionResponse decideOnce(UUID id, FraudDecisionRequest request) {
         FraudSession current = sessionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Fraud session not found: " + id));
         FraudStatus status = switch (request.decision()) {
@@ -228,7 +252,7 @@ public class FraudService {
         String cardStatus = request.decision() == FraudDecision.BLOCK ? "BLOCKED" : current.getCardStatus();
         String visualUrl = current.getVisualIvrUrl();
         if (request.decision() == FraudDecision.SEND_VISUAL_IVR) {
-            visualUrl = "/public/visual-ivr/" + visualIvrTokenService.createForSession(id).getToken();
+            visualUrl = visualIvrBaseUrl + "#/" + visualIvrTokenService.createForSession(id).getToken();
         }
         
         current.setStatus(status);
@@ -398,6 +422,72 @@ public class FraudService {
                 cardStatus);
     }
 
+    @Transactional
+    public VisualIvrOtpResponse requestVisualIvrOtp(String rawToken) {
+        VisualIvrToken token = visualIvrTokenService.resolve(rawToken);
+        FraudSession session = sessionRepository.findById(token.getSessionId())
+                .orElseThrow(() -> new IllegalArgumentException("Fraud session not found"));
+
+        String code = String.format("%06d", java.util.concurrent.ThreadLocalRandom.current().nextInt(1_000_000));
+        OffsetDateTime now = OffsetDateTime.now();
+        token.setOtpCode(code);
+        token.setOtpExpiresAt(now.plusMinutes(5));
+        token.setOtpVerified(false);
+        token.setUpdatedAt(now);
+        visualIvrTokenService.save(token);
+        recordActivity(token, "OTP_REQUESTED", now);
+
+        return new VisualIvrOtpResponse(maskPhone(session.getCustomerPhone()), token.getOtpExpiresAt(), false);
+    }
+
+    @Transactional
+    public VisualIvrOtpResponse validateVisualIvrOtp(String rawToken, String code) {
+        VisualIvrToken token = visualIvrTokenService.resolve(rawToken);
+        OffsetDateTime now = OffsetDateTime.now();
+        if (code == null || !code.equals(token.getOtpCode())) {
+            recordActivity(token, "OTP_FAILED", now);
+            throw new IllegalArgumentException("Invalid OTP. Please try again.");
+        }
+        if (token.getOtpExpiresAt() == null || now.isAfter(token.getOtpExpiresAt())) {
+            recordActivity(token, "OTP_EXPIRED", now);
+            throw new IllegalStateException("OTP has expired. Please request a new one.");
+        }
+        token.setOtpVerified(true);
+        token.setUpdatedAt(now);
+        visualIvrTokenService.save(token);
+        recordActivity(token, "OTP_VERIFIED", now);
+
+        FraudSession session = sessionRepository.findById(token.getSessionId())
+                .orElseThrow(() -> new IllegalArgumentException("Fraud session not found"));
+        return new VisualIvrOtpResponse(maskPhone(session.getCustomerPhone()), token.getOtpExpiresAt(), true);
+    }
+
+    @Transactional
+    public void recordVisualIvrActivity(String rawToken, String event) {
+        VisualIvrToken token = visualIvrTokenService.findByToken(rawToken);
+        recordActivity(token, event, OffsetDateTime.now());
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] downloadVisualIvrReceipt(String rawToken) {
+        VisualIvrToken token = visualIvrTokenService.findByToken(rawToken);
+        FraudSession session = sessionRepository.findById(token.getSessionId())
+                .orElseThrow(() -> new IllegalArgumentException("Fraud session not found"));
+        byte[] pdf = PdfReceiptGenerator.fraudVerificationReceipt(
+                "VX-" + session.getId().toString().substring(0, 8).toUpperCase(),
+                session.getMerchant(),
+                session.getAmount(),
+                session.getCardLastFour(),
+                session.getCreatedAt(),
+                session.getStatus().name());
+        recordActivity(token, "RECEIPT_DOWNLOADED", OffsetDateTime.now());
+        return pdf;
+    }
+
+    private void recordActivity(VisualIvrToken token, String event, OffsetDateTime at) {
+        activityRepository.save(new VisualIvrActivity(UUID.randomUUID(), token.getId(), event, at));
+    }
+
     private String maskPhone(String phone) {
         if (phone == null || phone.length() < 4) {
             return phone;
@@ -425,6 +515,12 @@ public class FraudService {
     }
 
     private FraudSessionResponse toSessionResponse(FraudSession session) {
+        java.util.Optional<VisualIvrToken> token = visualIvrTokenService.findTokenBySession(session.getId());
+        List<VisualIvrActivityResponse> journey = token.map(t ->
+                activityRepository.findByTokenIdOrderByCreatedAtAsc(t.getId()).stream()
+                        .map(a -> new VisualIvrActivityResponse(a.getEvent(), a.getCreatedAt()))
+                        .toList()).orElse(List.of());
+        String visualOtp = token.map(VisualIvrToken::getOtpCode).orElse(null);
         return new FraudSessionResponse(
                 session.getId(),
                 session.getCustomerPhone(),
@@ -435,6 +531,8 @@ public class FraudService {
                 session.getCardStatus(),
                 session.getVisualIvrUrl(),
                 session.getCreatedAt(),
-                session.getUpdatedAt());
+                session.getUpdatedAt(),
+                visualOtp,
+                journey);
     }
 }

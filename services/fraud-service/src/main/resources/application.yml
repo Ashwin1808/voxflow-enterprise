@@ -43,3 +43,6 @@ management:
 springdoc:
   api-docs:
     path: /api-docs
+voxflow:
+  visual-ivr:
+    base-url: ${VISUAL_IVR_BASE_URL:/v/}

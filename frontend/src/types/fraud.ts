@@ -31,6 +31,13 @@ export interface FraudSession {
   visualIvrUrl: string | null;
   createdAt: string;
   updatedAt: string;
+  visualOtp: string | null;
+  visualIvrActivity: VisualIvrActivityEntry[] | null;
+}
+
+export interface VisualIvrActivityEntry {
+  event: string;
+  createdAt: string;
 }
 
 export interface FraudCampaign {

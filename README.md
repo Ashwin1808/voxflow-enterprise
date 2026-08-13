@@ -58,6 +58,30 @@ cd frontend && npm install && npm run dev   # or: npm run build && node server.j
 
 Open http://localhost:4173 → log in `admin / admin`.
 
+### Visual IVR customer app (visapp-style)
+
+Customer-facing SPA (React + Vite, served from http://localhost:4180) — the
+"visual IVR" self-service flow, in the style of a real credit-card activation
+product:
+
+1. **Agent** sends the link from the Session's **Visual IVR** panel — it gets a
+   unique signed token.
+2. **Customer** opens the link → sees the fraud summary (card on file, amount,
+   last 4 digits, etc.) and taps **Continue**.
+3. **Verify OTP** — a 6-digit code is generated server-side (5 min expiry) and
+   shown to the agent (in this demo the agent reads it over the phone; plug in
+   your SMS provider to send it instead). Wrong codes are rejected.
+4. **Decision** — customer chooses Approve / Decline; the session is updated in
+   real time (agent dashboard reflects `APPROVED` / `DECLINED`, card status
+   `ACTIVE` / `FROZEN`).
+5. **Receipt** — a PDF receipt is generated on the fly and downloaded.
+6. Every step records a timeline entry (`VISUAL_IVR_VIEWED` → `OTP_REQUESTED` →
+   `OTP_VERIFIED` → `DECISION_APPROVED` → …) visible to the agent in
+   **Sessions**.
+
+Run: `cd visual-ivr-app && npm install && npm run dev`
+(`VISUAL_IVR_BASE_URL` in `.env` controls the link the agent copies).
+
 ### Run the full demo (10 minutes, free)
 
 1. **Dashboard** → **Campaigns** → **New campaign** → set a start time ~2 minutes ahead.

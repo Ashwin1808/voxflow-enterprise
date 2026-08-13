@@ -12,6 +12,8 @@ public interface VisualIvrTokenRepository extends JpaRepository<VisualIvrToken, 
 
     Optional<VisualIvrToken> findByToken(String token);
 
+    Optional<VisualIvrToken> findFirstBySessionIdOrderByCreatedAtDesc(UUID sessionId);
+
     @Modifying
     @Query("UPDATE VisualIvrToken t SET t.status = com.voxflow.fraud.domain.VisualIvrToken$TokenStatus.EXPIRED, t.updatedAt = CURRENT_TIMESTAMP WHERE t.sessionId = :sessionId AND t.status = com.voxflow.fraud.domain.VisualIvrToken$TokenStatus.ACTIVE")
     int expireActiveTokensForSession(@Param("sessionId") UUID sessionId);

@@ -2,6 +2,7 @@ package com.voxflow.fraud.dto;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record FraudSessionResponse(
@@ -14,6 +15,8 @@ public record FraudSessionResponse(
         String cardStatus,
         String visualIvrUrl,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        String visualOtp,
+        List<VisualIvrActivityResponse> visualIvrActivity
 ) {
 }

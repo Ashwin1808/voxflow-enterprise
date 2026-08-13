@@ -11,6 +11,7 @@ import com.voxflow.fraud.dto.FraudDecisionRequest;
 import com.voxflow.fraud.dto.FraudStatus;
 import com.voxflow.fraud.repository.FraudCampaignRepository;
 import com.voxflow.fraud.repository.FraudSessionRepository;
+import com.voxflow.fraud.repository.VisualIvrActivityRepository;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +27,8 @@ class FraudServiceTest {
     private final com.voxflow.workflow.service.WorkflowExecutor workflowExecutor = org.mockito.Mockito.mock(com.voxflow.workflow.service.WorkflowExecutor.class);
     private final com.voxflow.workflow.event.EventPublisher eventPublisher = org.mockito.Mockito.mock(com.voxflow.workflow.event.EventPublisher.class);
     private final VisualIvrTokenService visualIvrTokenService = org.mockito.Mockito.mock(VisualIvrTokenService.class);
-    private final FraudService fraudService = new FraudService(campaignRepository, sessionRepository, workflowExecutor, eventPublisher, visualIvrTokenService);
+    private final VisualIvrActivityRepository activityRepository = org.mockito.Mockito.mock(VisualIvrActivityRepository.class);
+    private final FraudService fraudService = new FraudService(campaignRepository, sessionRepository, workflowExecutor, eventPublisher, visualIvrTokenService, activityRepository, "/v/");
 
     private final Map<UUID, com.voxflow.fraud.domain.FraudCampaign> campaignDb = new HashMap<>();
     private final Map<UUID, com.voxflow.fraud.domain.FraudSession> sessionDb = new HashMap<>();
@@ -107,7 +109,7 @@ class FraudServiceTest {
         var decided = fraudService.decide(session.id(), new FraudDecisionRequest(FraudDecision.SEND_VISUAL_IVR));
 
         assertThat(decided.status()).isEqualTo(FraudStatus.VISUAL_IVR_SENT);
-        assertThat(decided.visualIvrUrl()).isEqualTo("/public/visual-ivr/abc-123-token");
+        assertThat(decided.visualIvrUrl()).isEqualTo("/v/#/abc-123-token");
         org.mockito.Mockito.verify(visualIvrTokenService).createForSession(session.id());
     }
 }

@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
 
-# Prepend Homebrew OpenJDK 21 to PATH
-export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"
+# Prepend Homebrew OpenJDK 21 to PATH and pin JAVA_HOME (JDK 24+ breaks Mockito and Keycloak JWT auth)
+export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+export PATH="$JAVA_HOME/bin:$PATH"
 
 echo "=================================================="
 echo " Starting VoxFlow Backend Infrastructure..."

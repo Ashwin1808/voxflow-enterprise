@@ -27,7 +27,78 @@ import { useLiveSessions } from "../../hooks/useLiveSessions";
 import { useSessionDecision, useSessionStore, useSessionsList } from "../../hooks/useSessionActions";
 import useAuth from "../../hooks/useAuth";
 import { formatAmount, formatPhone, timeAgo } from "../../utils/format";
-import type { FraudStatus } from "../../types/fraud";
+import type { FraudStatus, FraudSession } from "../../types/fraud";
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  VISUAL_IVR_VIEWED: "Visapp opened",
+  OTP_SCREEN_VIEWED: "OTP screen",
+  OTP_REQUESTED: "OTP sent to agent",
+  OTP_FAILED: "Wrong OTP",
+  OTP_VERIFIED: "OTP verified",
+  DECISION_APPROVED: "Customer approved",
+  DECISION_DECLINED: "Customer declined",
+  SUCCESS_SCREEN_VIEWED: "Success screen",
+  RECEIPT_DOWNLOADED: "Receipt downloaded",
+  ERROR_PAGE: "Error page shown",
+};
+
+function VisualIvrAgentPanel({ session }: { session: FraudSession }) {
+  const activity = session.visualIvrActivity ?? [];
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.5 }}>
+      {session.visualOtp && (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            px: 1.25,
+            py: 0.5,
+            borderRadius: 1.5,
+            bgcolor: "rgba(124,92,255,0.1)",
+            border: "1px solid rgba(124,92,255,0.35)",
+          }}
+        >
+          <Box sx={{ fontSize: "0.62rem", color: "text.secondary", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Agent OTP
+          </Box>
+          <Box sx={{ fontSize: "1rem", fontWeight: 800, letterSpacing: "0.3em", color: "#A78BFF", fontVariantNumeric: "tabular-nums" }}>
+            {session.visualOtp}
+          </Box>
+          <Button
+            size="small"
+            sx={{ minWidth: 0, px: 0.75, color: "#A78BFF", fontSize: "0.7rem" }}
+            onClick={() => navigator.clipboard?.writeText(session.visualOtp ?? "")}
+          >
+            Copy
+          </Button>
+        </Box>
+      )}
+      {session.visualIvrUrl && (
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => {
+            const url = session.visualIvrUrl;
+            if (url) window.open(url, "_blank", "noopener,noreferrer");
+          }}
+          sx={{ color: "#8F74FF", borderColor: "rgba(124,92,255,0.4)", "&:hover": { borderColor: "#8F74FF", bgcolor: "rgba(124,92,255,0.08)" } }}
+        >
+          Open visapp link
+        </Button>
+      )}
+      {activity.length > 0 && (
+        <Box sx={{ mt: 0.5, maxWidth: 260, textAlign: "right" }}>
+          {activity.slice(-3).map((entry) => (
+            <Box key={`${entry.event}-${entry.createdAt}`} sx={{ fontSize: "0.68rem", color: "text.muted" }}>
+              {ACTIVITY_LABELS[entry.event] ?? entry.event} · {timeAgo(entry.createdAt)}
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
 
 const STATUS_FILTERS: Array<{ label: string; value: FraudStatus | "ALL" }> = [
   { label: "All statuses", value: "ALL" },
@@ -180,17 +251,7 @@ export default function Sessions() {
                     </TableCell>
                     <TableCell align="right">
                       {session.status === "VISUAL_IVR_SENT" && session.visualIvrUrl ? (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          onClick={() => {
-                            const url = session.visualIvrUrl;
-                            if (url) window.open(url, "_blank", "noopener,noreferrer");
-                          }}
-                          sx={{ color: "#8F74FF", borderColor: "rgba(124,92,255,0.4)", "&:hover": { borderColor: "#8F74FF", bgcolor: "rgba(124,92,255,0.08)" } }}
-                        >
-                          Open link
-                        </Button>
+                        <VisualIvrAgentPanel session={session} />
                       ) : canDecide && !terminal ? (
                         <Box sx={{ display: "flex", gap: 0.75, justifyContent: "flex-end" }}>
                           <Button

@@ -1,0 +1,1 @@
+{"root":["./src/api.ts","./src/i18n.ts","./src/lang.tsx","./src/main.tsx","./src/util.ts","./src/screens/decisionscreen.tsx","./src/screens/errorscreen.tsx","./src/screens/otpscreen.tsx","./src/screens/successscreen.tsx","./src/screens/welcome.tsx"],"version":"5.9.3"}

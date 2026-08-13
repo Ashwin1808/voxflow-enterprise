@@ -43,6 +43,15 @@ public class VisualIvrToken {
     @Column(name = "used_at")
     private OffsetDateTime usedAt;
 
+    @Column(name = "otp_code")
+    private String otpCode;
+
+    @Column(name = "otp_expires_at")
+    private OffsetDateTime otpExpiresAt;
+
+    @Column(name = "otp_verified", nullable = false)
+    private boolean otpVerified;
+
     @Version
     private Integer version;
 
@@ -101,5 +110,29 @@ public class VisualIvrToken {
 
     public boolean isExpired(OffsetDateTime now) {
         return now.isAfter(expiresAt);
+    }
+
+    public String getOtpCode() {
+        return otpCode;
+    }
+
+    public void setOtpCode(String otpCode) {
+        this.otpCode = otpCode;
+    }
+
+    public OffsetDateTime getOtpExpiresAt() {
+        return otpExpiresAt;
+    }
+
+    public void setOtpExpiresAt(OffsetDateTime otpExpiresAt) {
+        this.otpExpiresAt = otpExpiresAt;
+    }
+
+    public boolean isOtpVerified() {
+        return otpVerified;
+    }
+
+    public void setOtpVerified(boolean otpVerified) {
+        this.otpVerified = otpVerified;
     }
 }

@@ -75,6 +75,27 @@ public class VisualIvrTokenService {
         return tokenRepository.save(token);
     }
 
+    @Transactional
+    public VisualIvrToken save(VisualIvrToken token) {
+        return tokenRepository.save(token);
+    }
+
+    /** Finds a token tolerating the USED status (e.g. receipt download after a decision). */
+    @Transactional(readOnly = true)
+    public VisualIvrToken findByToken(String rawToken) {
+        VisualIvrToken token = tokenRepository.findByToken(rawToken)
+                .orElseThrow(() -> new IllegalArgumentException("Verification link is invalid"));
+        if (token.isExpired(OffsetDateTime.now())) {
+            throw new IllegalStateException("Verification link has expired");
+        }
+        return token;
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Optional<VisualIvrToken> findTokenBySession(UUID sessionId) {
+        return tokenRepository.findFirstBySessionIdOrderByCreatedAtDesc(sessionId);
+    }
+
     private String generateToken() {
         byte[] bytes = new byte[24];
         SECURE_RANDOM.nextBytes(bytes);

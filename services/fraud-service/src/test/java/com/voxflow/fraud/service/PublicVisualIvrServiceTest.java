@@ -16,6 +16,7 @@ import com.voxflow.fraud.dto.VisualIvrPublicDecision;
 import com.voxflow.fraud.repository.FraudCampaignRepository;
 import com.voxflow.fraud.repository.FraudSessionRepository;
 import com.voxflow.fraud.repository.VisualIvrTokenRepository;
+import com.voxflow.fraud.repository.VisualIvrActivityRepository;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,7 +36,8 @@ class PublicVisualIvrServiceTest {
     private final com.voxflow.workflow.event.EventPublisher eventPublisher = Mockito.mock(com.voxflow.workflow.event.EventPublisher.class);
 
     private final VisualIvrTokenService tokenService = new VisualIvrTokenService(tokenRepository);
-    private final FraudService fraudService = new FraudService(campaignRepository, sessionRepository, workflowExecutor, eventPublisher, tokenService);
+    private final VisualIvrActivityRepository activityRepository = Mockito.mock(VisualIvrActivityRepository.class);
+    private final FraudService fraudService = new FraudService(campaignRepository, sessionRepository, workflowExecutor, eventPublisher, tokenService, activityRepository, "/v/");
 
     private final Map<String, VisualIvrToken> tokenDb = new HashMap<>();
     private final Map<UUID, FraudSession> sessionDb = new HashMap<>();
